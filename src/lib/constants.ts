@@ -4,16 +4,17 @@ import {
   OPERATIONS_AGENT_PROMPT,
   STRATEGY_AGENT_PROMPT,
 } from "./prompts";
+import type { Module } from "../types";
 
 // Maps used by the optimizer loop to re-run specific agents after evaluator feedback
-export const AGENT_PROMPTS = {
+export const AGENT_PROMPTS: Record<string, string> = {
   cost: COST_AGENT_PROMPT,
   arch: ARCH_AGENT_PROMPT,
   ops: OPERATIONS_AGENT_PROMPT,
   strategy: STRATEGY_AGENT_PROMPT,
 };
 
-export const AGENT_BRIEF_KEYS = {
+export const AGENT_BRIEF_KEYS: Record<string, string> = {
   cost: "cost",
   arch: "architecture",
   ops: "operations",
@@ -35,7 +36,7 @@ export const SCENARIOS = [
   },
 ];
 
-export const MODULES = [
+export const MODULES: Module[] = [
   { id: "currentArch", label: "Add current architecture", key: "guidedStep1", placeholder: "Technologies, scale, team, and how things run today…" },
   { id: "proposed", label: "Add proposed solution", key: "guidedStep2", placeholder: "Target architecture, vendor, or migration you're evaluating…" },
   { id: "constraints", label: "Add constraints", key: "guidedStep3", placeholder: "Budget, timeline, compliance, risk appetite…" },

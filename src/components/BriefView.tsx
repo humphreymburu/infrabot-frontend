@@ -1,8 +1,9 @@
 import { T, S } from "../lib/theme";
 import { Sec } from "./ui/Sec";
 import { Badge, VBadge, GBadge, Dot, Bar, KV, WTag } from "./ui/Badge";
+import type { Brief } from "../types";
 
-export function BriefView({ d }) {
+export function BriefView({ d }: { d: Brief | null }) {
   if (!d) return null;
   return (
     <div style={{ animation: "briefIn 0.5s ease" }}>
@@ -34,7 +35,7 @@ export function BriefView({ d }) {
             <KV label="Migration" value={d.cost_analysis.migration_one_time} mono color={T.o} />
             <KV label="ROI" value={d.cost_analysis.roi_timeline} />
           </div>
-          {d.cost_analysis.pricing_details?.length > 0 && (
+          {d.cost_analysis.pricing_details && d.cost_analysis.pricing_details.length > 0 && (
             <>
               <div style={{ fontSize: 9, color: T.a, fontWeight: 700, letterSpacing: "0.12em", fontFamily: T.mn, marginBottom: 8 }}>VERIFIED PRICING</div>
               <div style={{ overflowX: "auto" }}>
@@ -57,7 +58,7 @@ export function BriefView({ d }) {
             </>
           )}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginTop: 12 }}>
-            {d.cost_analysis.hidden_costs?.length > 0 && (
+            {d.cost_analysis.hidden_costs && d.cost_analysis.hidden_costs.length > 0 && (
               <div>
                 <div style={{ fontSize: 9, color: T.rd, fontWeight: 700, fontFamily: T.mn, marginBottom: 6 }}>HIDDEN COSTS</div>
                 {d.cost_analysis.hidden_costs.map((c, i) => (
@@ -67,7 +68,7 @@ export function BriefView({ d }) {
                 ))}
               </div>
             )}
-            {d.cost_analysis.savings_opportunities?.length > 0 && (
+            {d.cost_analysis.savings_opportunities && d.cost_analysis.savings_opportunities.length > 0 && (
               <div>
                 <div style={{ fontSize: 9, color: T.g, fontWeight: 700, fontFamily: T.mn, marginBottom: 6 }}>SAVINGS</div>
                 {d.cost_analysis.savings_opportunities.map((s, i) => (
@@ -82,7 +83,7 @@ export function BriefView({ d }) {
       )}
 
       {/* Technical Comparison */}
-      {d.technical_comparison?.dimensions?.length > 0 && (
+      {d.technical_comparison?.dimensions && d.technical_comparison.dimensions.length > 0 && (
         <Sec title="Technical Comparison" icon="⇔">
           <div style={{ overflowX: "auto" }}>
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11 }}>
@@ -111,7 +112,7 @@ export function BriefView({ d }) {
           {d.architecture_review.scores && Object.entries(d.architecture_review.scores).map(([k, v]) => (
             <Bar key={k} score={v?.rating} label={k.charAt(0).toUpperCase() + k.slice(1)} sub={v?.notes} />
           ))}
-          {d.architecture_review.failure_modes?.length > 0 && (
+          {d.architecture_review.failure_modes && d.architecture_review.failure_modes.length > 0 && (
             <div style={{ marginTop: 10 }}>
               <div style={{ fontSize: 9, color: T.rd, fontWeight: 700, fontFamily: T.mn, marginBottom: 6 }}>FAILURE MODES</div>
               {d.architecture_review.failure_modes.map((f, i) => (
@@ -132,13 +133,13 @@ export function BriefView({ d }) {
             <KV label="Business Alignment" value={`${d.strategic_assessment.business_alignment?.score}/10`} />
             <KV label="Time to Value" value={d.strategic_assessment.time_to_value?.estimate} />
             <KV label="Org Readiness" value={`${d.strategic_assessment.organizational_readiness?.score}/10`} />
-            <KV label="Vendor Lock-in" value={d.strategic_assessment.vendor_lock_in?.risk_level} color={({ CRITICAL: T.rd, HIGH: T.o, MEDIUM: T.y, LOW: T.g })[d.strategic_assessment.vendor_lock_in?.risk_level]} />
+            <KV label="Vendor Lock-in" value={d.strategic_assessment.vendor_lock_in?.risk_level} color={({ CRITICAL: T.rd, HIGH: T.o, MEDIUM: T.y, LOW: T.g } as Record<string, string>)[d.strategic_assessment.vendor_lock_in?.risk_level ?? ""]} />
           </div>
-          {[
+          {([
             ["Competitive Impact", d.strategic_assessment.competitive_impact],
             ["Opportunity Cost", d.strategic_assessment.opportunity_cost],
             ["Exit Strategy", d.strategic_assessment.vendor_lock_in?.exit_strategy],
-          ].filter(([, v]) => v).map(([l, v], i) => (
+          ] as [string, string | undefined][]).filter(([, v]) => v).map(([l, v], i) => (
             <p key={i} style={{ fontSize: 12, color: T.m, lineHeight: 1.6, margin: "0 0 5px" }}>
               <strong style={{ color: T.t }}>{l}:</strong> {v}
             </p>
@@ -158,7 +159,7 @@ export function BriefView({ d }) {
           {d.devops_sre_assessment.observability_stack && (
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: 6, marginBottom: 10 }}>
               {["metrics", "logs", "traces", "alerting"].map((k) =>
-                d.devops_sre_assessment.observability_stack?.[k] && <KV key={k} label={k} value={d.devops_sre_assessment.observability_stack[k]} />
+                d.devops_sre_assessment?.observability_stack?.[k] && <KV key={k} label={k} value={d.devops_sre_assessment.observability_stack[k]} />
               )}
             </div>
           )}
@@ -169,7 +170,7 @@ export function BriefView({ d }) {
               <KV label="DR Strategy" value={d.devops_sre_assessment.reliability_engineering.disaster_recovery.dr_strategy} />
             </div>
           )}
-          {d.devops_sre_assessment.sre_risks?.length > 0 && (
+          {d.devops_sre_assessment.sre_risks && d.devops_sre_assessment.sre_risks.length > 0 && (
             <div style={{ marginTop: 12, padding: "10px 12px", background: T.rD, borderRadius: 6, border: "1px solid rgba(248,113,113,0.12)" }}>
               <div style={{ fontSize: 9, color: T.rd, fontWeight: 700, fontFamily: T.mn, marginBottom: 5 }}>SRE RISKS</div>
               {d.devops_sre_assessment.sre_risks.map((r, i) => (
@@ -183,7 +184,7 @@ export function BriefView({ d }) {
       )}
 
       {/* Risk Register */}
-      {d.risk_register?.length > 0 && (
+      {d.risk_register && d.risk_register.length > 0 && (
         <Sec title="Risk Register" icon="⚠" defaultOpen={false}>
           <div style={{ overflowX: "auto" }}>
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11 }}>
@@ -195,7 +196,7 @@ export function BriefView({ d }) {
                   <td style={{ padding: 6, fontFamily: T.mn, color: T.d }}>{r.id}</td>
                   <td style={{ padding: 6 }}><Badge color={T.m} bg={T.s}>{(r.category || "").slice(0, 5)}</Badge></td>
                   <td style={{ padding: 6, color: T.t, maxWidth: 180 }}>{r.risk}</td>
-                  <td style={{ padding: 6, fontFamily: T.mn, fontWeight: 700, color: r.risk_score >= 15 ? T.rd : r.risk_score >= 9 ? T.y : T.g }}>{r.risk_score}</td>
+                  <td style={{ padding: 6, fontFamily: T.mn, fontWeight: 700, color: (r.risk_score ?? 0) >= 15 ? T.rd : (r.risk_score ?? 0) >= 9 ? T.y : T.g }}>{r.risk_score}</td>
                   <td style={{ padding: 6, color: T.d, maxWidth: 180 }}>{r.mitigation}</td>
                   <td style={{ padding: 6, color: T.d }}>{r.owner}</td>
                 </tr>
@@ -206,7 +207,7 @@ export function BriefView({ d }) {
       )}
 
       {/* Alternatives */}
-      {d.alternatives?.length > 0 && (
+      {d.alternatives && d.alternatives.length > 0 && (
         <Sec title="Alternatives" icon="⇔" defaultOpen={false}>
           {d.alternatives.map((alt, i) => (
             <div key={i} style={{ background: T.s, padding: 14, borderRadius: 8, border: `1px solid ${T.b}`, marginBottom: 8 }}>
@@ -246,7 +247,7 @@ export function BriefView({ d }) {
               </div>
             ))}
           </div>
-          {d.implementation_roadmap.quick_wins?.length > 0 && (
+          {d.implementation_roadmap.quick_wins && d.implementation_roadmap.quick_wins.length > 0 && (
             <div style={{ padding: "8px 12px", background: T.gD, borderRadius: 6, border: "1px solid rgba(52,211,153,0.12)", marginTop: 8 }}>
               <div style={{ fontSize: 9, color: T.g, fontWeight: 700, fontFamily: T.mn, marginBottom: 4 }}>QUICK WINS</div>
               {d.implementation_roadmap.quick_wins.map((w, i) => <div key={i} style={{ fontSize: 12, color: "rgba(52,211,153,0.8)" }}>✓ {w}</div>)}
@@ -264,7 +265,7 @@ export function BriefView({ d }) {
             <GBadge v={d.recommendation.decision} />
           </div>
           <p style={{ fontSize: 14, color: T.t, lineHeight: 1.7, margin: "0 0 14px", fontWeight: 500, position: "relative" }}>{d.recommendation.rationale}</p>
-          {d.recommendation.conditions?.length > 0 && (
+          {d.recommendation.conditions && d.recommendation.conditions.length > 0 && (
             <div style={{ marginBottom: 12, position: "relative" }}>
               <div style={{ fontSize: 9, color: T.y, fontWeight: 700, fontFamily: T.mn, marginBottom: 5 }}>CONDITIONS</div>
               {d.recommendation.conditions.map((c, i) => <div key={i} style={{ fontSize: 12, color: "rgba(251,191,36,0.8)", padding: "2px 0" }}>⚬ {c}</div>)}

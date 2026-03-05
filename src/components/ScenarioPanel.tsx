@@ -1,9 +1,17 @@
 import { T } from "../lib/theme";
 import { Sec } from "./ui/Sec";
+import type { AppState, Action } from "../types";
+import { Dispatch } from "react";
 
-export function ScenarioPanel({ state, dispatch, onReanalyze }) {
+interface ScenarioPanelProps {
+  state: AppState;
+  dispatch: Dispatch<Action>;
+  onReanalyze: () => void;
+}
+
+export function ScenarioPanel({ state, dispatch, onReanalyze }: ScenarioPanelProps) {
   const overrides = state.scenarioOverrides;
-  const set = (k, v) => dispatch({ type: "SET_SCENARIO", value: { [k]: v } });
+  const set = (k: string, v: string) => dispatch({ type: "SET_SCENARIO", value: { [k]: v } });
 
   return (
     <Sec title="What-If Scenario Modeling" icon="⚡" defaultOpen={true}>
@@ -22,7 +30,7 @@ export function ScenarioPanel({ state, dispatch, onReanalyze }) {
           <label style={{ fontSize: 9, color: T.d, fontFamily: T.mn, fontWeight: 700, display: "block", marginBottom: 4, letterSpacing: "0.1em" }}>TIMELINE CHANGE</label>
           <select value={overrides.timelineChange || "no_change"} onChange={(e) => set("timelineChange", e.target.value)}
             style={{ width: "100%", background: T.bg, border: `1px solid ${T.b}`, borderRadius: 6, padding: "7px 10px", fontSize: 12, color: T.t }}>
-            {[["no_change", "No change"], ["halved", "Cut in half"], ["doubled", "Double the time"], ["urgent", "Must ship in 90 days"]].map(([v, l]) => (
+            {([["no_change", "No change"], ["halved", "Cut in half"], ["doubled", "Double the time"], ["urgent", "Must ship in 90 days"]] as [string, string][]).map(([v, l]) => (
               <option key={v} value={v}>{l}</option>
             ))}
           </select>
@@ -31,7 +39,7 @@ export function ScenarioPanel({ state, dispatch, onReanalyze }) {
           <label style={{ fontSize: 9, color: T.d, fontFamily: T.mn, fontWeight: 700, display: "block", marginBottom: 4, letterSpacing: "0.1em" }}>ADD TEAM MEMBERS</label>
           <select value={overrides.teamChange || "none"} onChange={(e) => set("teamChange", e.target.value)}
             style={{ width: "100%", background: T.bg, border: `1px solid ${T.b}`, borderRadius: 6, padding: "7px 10px", fontSize: 12, color: T.t }}>
-            {[["none", "No change"], ["+2_sre", "+2 SREs"], ["+3_dev", "+3 Developers"], ["-2_any", "Lose 2 engineers"]].map(([v, l]) => (
+            {([["none", "No change"], ["+2_sre", "+2 SREs"], ["+3_dev", "+3 Developers"], ["-2_any", "Lose 2 engineers"]] as [string, string][]).map(([v, l]) => (
               <option key={v} value={v}>{l}</option>
             ))}
           </select>
@@ -40,7 +48,7 @@ export function ScenarioPanel({ state, dispatch, onReanalyze }) {
           <label style={{ fontSize: 9, color: T.d, fontFamily: T.mn, fontWeight: 700, display: "block", marginBottom: 4, letterSpacing: "0.1em" }}>ADD COMPLIANCE</label>
           <select value={overrides.addCompliance || "none"} onChange={(e) => set("addCompliance", e.target.value)}
             style={{ width: "100%", background: T.bg, border: `1px solid ${T.b}`, borderRadius: 6, padding: "7px 10px", fontSize: 12, color: T.t }}>
-            {[["none", "No change"], ["soc2", "Add SOC 2"], ["hipaa", "Add HIPAA"], ["fedramp", "Add FedRAMP"]].map(([v, l]) => (
+            {([["none", "No change"], ["soc2", "Add SOC 2"], ["hipaa", "Add HIPAA"], ["fedramp", "Add FedRAMP"]] as [string, string][]).map(([v, l]) => (
               <option key={v} value={v}>{l}</option>
             ))}
           </select>

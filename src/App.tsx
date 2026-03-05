@@ -11,6 +11,7 @@ import { SourcesView } from "./components/SourcesView";
 import { HistoryView } from "./components/HistoryView";
 import { DiffView } from "./components/DiffView";
 import { Tab } from "./components/ui/Badge";
+import type { Brief } from "./types";
 
 export default function App() {
   const {
@@ -20,7 +21,7 @@ export default function App() {
     resultRef, getMainInput, analyze, handleScenarioReanalyze, handleLoadHistory,
   } = useAppLogic();
 
-  const handleCompare = (h) => {
+  const handleCompare = (h: Brief) => {
     dispatch({ type: "SET_COMPARE", value: h });
     dispatch({ type: "SET_TAB", value: "changes" });
   };
@@ -134,10 +135,10 @@ export default function App() {
                     transition: "background 0.2s ease, box-shadow 0.2s ease",
                   }}
                 >
-                  {state.phase === "idle" ? "Analyze Architecture Decision" : "Analyzing\u2026"}
+                  {state.phase === "idle" ? "Analyze Architecture Decision" : "Analyzing…"}
                 </button>
                 <p style={{ fontSize: 11, color: T.d, margin: `${S.s}px 0 0`, fontFamily: T.sn, textAlign: "center" }}>
-                  {isAnalyzing ? "This usually takes 1\u20132 minutes" : getMainInput().trim() ? "5 AI agents \u00b7 Cost modeling \u00b7 Risk analysis" : "Enter a decision prompt above to analyze"}
+                  {isAnalyzing ? "This usually takes 1–2 minutes" : getMainInput().trim() ? "5 AI agents · Cost modeling · Risk analysis" : "Enter a decision prompt above to analyze"}
                 </p>
               </div>
             )}
@@ -155,15 +156,15 @@ export default function App() {
                     onMouseLeave={(e) => { e.currentTarget.style.borderColor = T.b; e.currentTarget.style.background = T.s; }}
                   >
                     <span style={{ fontSize: 13, fontWeight: 600, color: T.t, fontFamily: T.sn, display: "block", marginBottom: 4 }}>{ex.label}</span>
-                    <span style={{ fontSize: 12, color: T.m, lineHeight: 1.5, fontFamily: T.sn }}>{ex.text.slice(0, 100)}\u2026</span>
-                    <span style={{ fontSize: 11, color: T.a, marginTop: 6, display: "block" }}>Run scenario \u2192</span>
+                    <span style={{ fontSize: 12, color: T.m, lineHeight: 1.5, fontFamily: T.sn }}>{ex.text.slice(0, 100)}…</span>
+                    <span style={{ fontSize: 11, color: T.a, marginTop: 6, display: "block" }}>Run scenario →</span>
                   </button>
                 ))}
               </div>
               {SCENARIOS.length > 2 && (
                 <button type="button" onClick={() => setShowMoreExamples(!showMoreExamples)}
                   style={{ marginTop: S.s, fontSize: 12, color: T.a, background: "none", border: "none", cursor: "pointer", fontFamily: T.sn, padding: 0 }}>
-                  {showMoreExamples ? "Show less" : "More examples \u2192"}
+                  {showMoreExamples ? "Show less" : "More examples →"}
                 </button>
               )}
             </aside>
@@ -176,10 +177,10 @@ export default function App() {
             <div role="status" aria-live="polite" style={{ background: T.s, border: `1px solid ${T.b}`, borderRadius: 12, padding: S.l, marginBottom: S.m, boxShadow: "0 4px 20px rgba(15,23,42,0.06)" }}>
               <div style={{ fontSize: 12, fontWeight: 600, color: T.t, marginBottom: S.s, fontFamily: T.sn }}>AI Analysis</div>
               <p style={{ fontSize: 12, color: T.m, margin: `0 0 ${S.m}px`, fontFamily: T.sn }}>
-                {state.phase === "researching" ? "Researching architecture options\u2026 Evaluating cost tradeoffs\u2026"
-                  : state.phase === "evaluating" ? "Critical review in progress\u2026"
-                  : state.phase === "revising" ? "Optimizer: re-running flagged agents with reviewer feedback\u2026"
-                  : "Synthesizing brief\u2026"} This usually takes 1\u20133 minutes.
+                {state.phase === "researching" ? "Researching architecture options… Evaluating cost tradeoffs…"
+                  : state.phase === "evaluating" ? "Critical review in progress…"
+                  : state.phase === "revising" ? "Optimizer: re-running flagged agents with reviewer feedback…"
+                  : "Synthesizing brief…"} This usually takes 1–3 minutes.
               </p>
               {[
                 { done: true, active: false, label: "Parsing context" },
@@ -196,9 +197,9 @@ export default function App() {
               ].map((step, i) => (
                 <div key={i} style={{ display: "flex", alignItems: "center", gap: S.s, padding: `${S.s}px 0`, fontSize: 13, color: step.done ? T.m : T.t, fontFamily: T.sn }}>
                   <span style={{ width: 20, textAlign: "center" }}>
-                    {step.done ? <span style={{ color: T.g }}>\u2713</span> : step.active ? <span style={{ color: T.a, animation: "pulse 1s infinite" }}>\u2192</span> : "\u25cb"}
+                    {step.done ? <span style={{ color: T.g }}>✓</span> : step.active ? <span style={{ color: T.a, animation: "pulse 1s infinite" }}>→</span> : "○"}
                   </span>
-                  <span>{step.label}{step.active ? "\u2026" : ""}</span>
+                  <span>{step.label}{step.active ? "…" : ""}</span>
                 </div>
               ))}
             </div>
@@ -243,3 +244,4 @@ export default function App() {
     </div>
   );
 }
+

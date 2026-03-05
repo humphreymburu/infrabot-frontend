@@ -1,4 +1,6 @@
-export const PROVIDERS = {
+import type { Provider } from "../types";
+
+export const PROVIDERS: Record<string, Provider> = {
   kimi: {
     name: "Kimi K2",
     defaultModel: "kimi-k2",
@@ -22,22 +24,24 @@ export const PROVIDERS = {
   },
 };
 
-export function getEnvKeyForProvider(p) {
-  return {
-    kimi: import.meta.env.VITE_KIMI_API_KEY,
-    qwen: import.meta.env.VITE_QWEN_API_KEY,
-    minimax: import.meta.env.VITE_MINIMAX_API_KEY,
-  }[p] || "";
+export function getEnvKeyForProvider(p: string): string {
+  return (
+    ({
+      kimi: import.meta.env.VITE_KIMI_API_KEY,
+      qwen: import.meta.env.VITE_QWEN_API_KEY,
+      minimax: import.meta.env.VITE_MINIMAX_API_KEY,
+    } as Record<string, string>)[p] || ""
+  );
 }
 
-export function getAltEndpoint(providerKey) {
+export function getAltEndpoint(providerKey: string): string | null {
   const p = PROVIDERS[providerKey];
   if (!p) return null;
   return import.meta.env.DEV ? p.devEndpoint : p.prodEndpoint;
 }
 
-export function getApiHeaders(apiKey) {
-  const headers = {
+export function getApiHeaders(apiKey: string): Record<string, string> {
+  const headers: Record<string, string> = {
     "Content-Type": "application/json",
     // Enable prompt caching — cached tokens don't count against TPM limits.
     // Safe to send in dev too since the proxy doesn't inject this header.
@@ -54,7 +58,6 @@ export function getApiHeaders(apiKey) {
   return headers;
 }
 
-export function getApiUrl(apiKey) {
-  void apiKey;
+export function getApiUrl(_apiKey: string): string {
   return "/api/messages";
 }

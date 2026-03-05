@@ -1,20 +1,27 @@
 import { T, S } from "../lib/theme";
 import { MODULES } from "../lib/constants";
+import type { AppState, Action, AppContext } from "../types";
+import { Dispatch } from "react";
 
-export function IntakeForm({ state, dispatch }) {
+interface IntakeFormProps {
+  state: AppState;
+  dispatch: Dispatch<Action>;
+}
+
+export function IntakeForm({ state, dispatch }: IntakeFormProps) {
   const ctx = state.context;
-  const setCtx = (v) => dispatch({ type: "SET_CONTEXT", value: v });
-  const setExpanded = (id) => dispatch({ type: "SET_EXPANDED_MODULE", value: state.expandedModule === id ? null : id });
+  const setCtx = (v: Partial<AppContext>) => dispatch({ type: "SET_CONTEXT", value: v });
+  const setExpanded = (id: string) => dispatch({ type: "SET_EXPANDED_MODULE", value: state.expandedModule === id ? null : id });
   const complianceOpts = ["SOC 2", "HIPAA", "PCI-DSS", "GDPR", "FedRAMP", "ISO 27001", "SOX"];
-  const toggleCompliance = (c) => {
+  const toggleCompliance = (c: string) => {
     const arr = ctx.compliance.includes(c) ? ctx.compliance.filter((x) => x !== c) : [...ctx.compliance, c];
     setCtx({ compliance: arr });
   };
-  const handleFile = (e) => {
-    const file = e.target.files[0];
+  const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = (ev) => setCtx({ uploadedData: { name: file.name, content: ev.target.result } });
+    reader.onload = (ev) => setCtx({ uploadedData: { name: file.name, content: ev.target?.result as string } });
     reader.readAsText(file);
   };
   const lineCount = (state.input.match(/\n/g) || []).length + 1;
@@ -70,8 +77,8 @@ export function IntakeForm({ state, dispatch }) {
             {key && (
               <textarea
                 value={ctx[key]}
-                onChange={(e) => setCtx({ [key]: e.target.value })}
-                placeholder={placeholder}
+                onChange={(e) => setCtx({ [key]: e.target.value } as Partial<AppContext>)}
+                placeholder={placeholder ?? ""}
                 rows={3}
                 style={{ width: "100%", background: T.bg, border: `1px solid ${T.b}`, borderRadius: 8, padding: S.m, fontSize: 13, color: T.t, resize: "vertical", fontFamily: T.sn, lineHeight: 1.5 }}
               />

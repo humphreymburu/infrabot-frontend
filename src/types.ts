@@ -1,0 +1,260 @@
+export type AppPhase =
+  | "idle"
+  | "intake"
+  | "researching"
+  | "evaluating"
+  | "revising"
+  | "synthesizing"
+  | "done"
+  | "error";
+
+export type AgentKey = "cost" | "arch" | "ops" | "strategy" | "evaluator" | "synthesis";
+export type AgentStatus = "pending" | "searching" | "analyzing" | "working" | "done" | "error";
+export type AgentProgressMap = Record<AgentKey, AgentStatus>;
+
+export interface AppContext {
+  budget: string;
+  teamSize: string;
+  compliance: string[];
+  timeline: string;
+  riskAppetite: string;
+  cloud: string;
+  uploadedData: { name: string; content: string } | null;
+  guidedStep1: string;
+  guidedStep2: string;
+  guidedStep3: string;
+}
+
+export interface ScenarioOverrides {
+  trafficMultiplier?: string;
+  timelineChange?: string;
+  teamChange?: string;
+  addCompliance?: string;
+}
+
+export interface SearchEntry {
+  agent: string;
+  query: string;
+  ts: number;
+}
+
+export interface Alternative {
+  name: string;
+  approach?: string;
+  cost_vs_proposed?: string;
+  timeline_vs_proposed?: string;
+  pros?: string[];
+  cons?: string[];
+  when_to_prefer?: string;
+}
+
+export interface Brief {
+  _timestamp?: string;
+  meta?: {
+    title?: string;
+    proposal_summary?: string;
+    verdict?: string;
+    confidence_score?: number;
+    executive_summary?: string;
+  };
+  cost_analysis?: {
+    narrative?: string;
+    current_state_monthly?: string;
+    proposed_monthly?: string;
+    year_1_total?: string;
+    year_3_total?: string;
+    migration_one_time?: string;
+    roi_timeline?: string;
+    pricing_details?: Array<{
+      service: string;
+      sku_or_tier: string;
+      unit_price: string;
+      estimated_usage: string;
+      monthly_cost: string;
+      source?: string;
+    }>;
+    hidden_costs?: Array<{ item: string; estimated: string; why_hidden?: string }>;
+    savings_opportunities?: Array<{ opportunity: string; potential_savings: string; effort?: string }>;
+  };
+  architecture_review?: {
+    pattern_name?: string;
+    pattern_rationale?: string;
+    scores?: Record<string, { rating?: number; notes?: string; [key: string]: unknown }>;
+    failure_modes?: Array<{ scenario: string; impact: string; mitigation: string }>;
+  };
+  technical_comparison?: {
+    summary?: string;
+    dimensions?: Array<{
+      dimension: string;
+      current: string;
+      proposed: string;
+      assessment: string;
+      winner: string;
+    }>;
+  };
+  strategic_assessment?: {
+    business_alignment?: { score?: number; rationale?: string };
+    time_to_value?: { estimate?: string; breakdown?: string };
+    competitive_impact?: string;
+    vendor_lock_in?: {
+      risk_level?: string;
+      locked_services?: string[];
+      exit_strategy?: string;
+      portability_notes?: string;
+    };
+    organizational_readiness?: {
+      score?: number;
+      gaps?: string[];
+      change_management_needs?: string;
+    };
+    opportunity_cost?: string;
+    market_timing?: string;
+    alternatives?: Alternative[];
+  };
+  devops_sre_assessment?: {
+    ci_cd?: {
+      complexity?: string;
+      recommended_toolchain?: string;
+      pipeline_design?: string;
+      estimated_setup?: string;
+    };
+    infrastructure_as_code?: {
+      recommended_tool?: string;
+      state_management?: string;
+      module_strategy?: string;
+    };
+    deployment_strategy?: {
+      method?: string;
+      rollback_plan?: string;
+      canary_percentage?: string;
+      deployment_frequency_target?: string;
+    };
+    observability_stack?: {
+      metrics?: string;
+      logs?: string;
+      traces?: string;
+      alerting?: string;
+      dashboards?: string;
+      estimated_monthly?: string;
+      [key: string]: string | undefined;
+    };
+    reliability_engineering?: {
+      disaster_recovery?: { rpo?: string; rto?: string; dr_strategy?: string };
+    };
+    sre_risks?: Array<{ risk: string; severity: string; mitigation?: string }>;
+  };
+  risk_register?: Array<{
+    id: string;
+    category?: string;
+    risk: string;
+    probability?: string;
+    impact?: string;
+    risk_score?: number;
+    mitigation?: string;
+    owner?: string;
+  }>;
+  alternatives?: Alternative[];
+  implementation_roadmap?: {
+    total_duration?: string;
+    phases?: Array<{
+      name: string;
+      duration?: string;
+      objectives?: string[];
+      deliverables?: string[];
+      gate_criteria?: string;
+      team_needed?: string;
+      risks?: string[];
+    }>;
+    quick_wins?: string[];
+    critical_path?: string;
+  };
+  recommendation?: {
+    decision?: string;
+    rationale?: string;
+    conditions?: string[];
+    next_steps?: Array<{ step: string; owner?: string; deadline?: string }>;
+    decision_deadline?: string;
+    what_happens_if_we_wait?: string;
+  };
+  research_sources?: Array<{ url?: string; title?: string; key_data?: string }>;
+  devils_advocate?: {
+    overall_assessment?: string;
+    challenges?: Array<{
+      claim: string;
+      challenge: string;
+      severity: string;
+      suggestion: string;
+    }>;
+    missing_considerations?: string[];
+    cost_flags?: string[];
+    timeline_flags?: string[];
+    revised_confidence?: number;
+    revised_verdict?: string;
+    revision_needed?: Record<string, string | null>;
+  };
+}
+
+export interface AppState {
+  phase: AppPhase;
+  input: string;
+  context: AppContext;
+  brief: Brief | null;
+  history: Brief[];
+  searchLog: SearchEntry[];
+  agentProgress: AgentProgressMap;
+  error: string | null;
+  evalCritiques: [string, string][] | null;
+  compareWith: Brief | null;
+  scenarioOverrides: ScenarioOverrides;
+  activeTab: string;
+  showIntake: boolean;
+  expandedModule: string | null;
+}
+
+export type Action =
+  | { type: "SET_INPUT"; value: string }
+  | { type: "SET_CONTEXT"; value: Partial<AppContext> }
+  | { type: "SET_PHASE"; value: AppPhase }
+  | { type: "SET_BRIEF"; value: Brief }
+  | { type: "SET_ERROR"; value: string | null }
+  | { type: "ADD_SEARCH"; value: SearchEntry }
+  | { type: "CLEAR_SEARCHES" }
+  | { type: "UPDATE_AGENT"; agent: AgentKey; status: AgentStatus }
+  | { type: "RESET_AGENTS" }
+  | { type: "SET_EVAL_CRITIQUES"; value: [string, string][] | null }
+  | { type: "SET_COMPARE"; value: Brief | null }
+  | { type: "SET_TAB"; value: string }
+  | { type: "TOGGLE_INTAKE" }
+  | { type: "ADD_HISTORY"; value: Brief }
+  | { type: "SET_SCENARIO"; value: Partial<ScenarioOverrides> }
+  | { type: "SET_EXPANDED_MODULE"; value: string | null }
+  | { type: "RESET" };
+
+export interface AltConfig {
+  provider: string;
+  model: string;
+  apiKey: string;
+}
+
+export interface Provider {
+  name: string;
+  defaultModel: string;
+  models: string[];
+  devEndpoint: string;
+  prodEndpoint: string;
+}
+
+export interface Module {
+  id: string;
+  label: string;
+  key: "guidedStep1" | "guidedStep2" | "guidedStep3" | null;
+  placeholder: string | null;
+}
+
+export interface ApiError extends Error {
+  status?: number;
+  /** Seconds to wait (from Retry-After header). */
+  retryAfter?: number | null;
+  /** Epoch ms when input token limit will be replenished (from anthropic-ratelimit-input-tokens-reset). */
+  rateLimitResetAt?: number | null;
+}

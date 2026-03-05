@@ -1,5 +1,6 @@
 import { T } from "../lib/theme";
 import { Badge } from "./ui/Badge";
+import type { AgentProgressMap, SearchEntry } from "../types";
 
 const AGENTS = [
   { key: "cost", label: "Cost Modeler", icon: "$" },
@@ -10,24 +11,29 @@ const AGENTS = [
   { key: "synthesis", label: "Synthesis Engine", icon: "◉" },
 ];
 
-const STATUS_COLOR = { pending: T.d, searching: T.y, analyzing: T.o, working: T.y, done: T.g, error: T.rd };
-const STATUS_LABEL = { pending: "Waiting", searching: "Searching web...", analyzing: "Analyzing...", working: "Synthesizing...", done: "Complete", error: "Failed" };
+const STATUS_COLOR: Record<string, string> = { pending: T.d, searching: T.y, analyzing: T.o, working: T.y, done: T.g, error: T.rd };
+const STATUS_LABEL: Record<string, string> = { pending: "Waiting", searching: "Searching web...", analyzing: "Analyzing...", working: "Synthesizing...", done: "Complete", error: "Failed" };
 
-export function AgentProgress({ progress, searchLog }) {
+interface AgentProgressProps {
+  progress: AgentProgressMap;
+  searchLog: SearchEntry[];
+}
+
+export function AgentProgress({ progress, searchLog }: AgentProgressProps) {
   return (
     <div style={{ background: T.s, border: `1px solid ${T.b}`, borderRadius: 12, padding: 18, marginBottom: 14 }}>
       <div style={{ fontSize: 10, fontFamily: T.mn, color: T.a, fontWeight: 700, letterSpacing: "0.12em", marginBottom: 14 }}>MULTI-AGENT PIPELINE</div>
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 8, marginBottom: 16 }}>
         {AGENTS.map(({ key, label, icon }) => (
-          <div key={key} style={{ background: T.bg, border: `1px solid ${progress[key] === "done" ? "rgba(52,211,153,0.2)" : T.b}`, borderRadius: 8, padding: "10px 12px" }}>
+          <div key={key} style={{ background: T.bg, border: `1px solid ${progress[key as keyof AgentProgressMap] === "done" ? "rgba(52,211,153,0.2)" : T.b}`, borderRadius: 8, padding: "10px 12px" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
               <span style={{ fontSize: 12, opacity: 0.6 }}>{icon}</span>
               <span style={{ fontSize: 10, color: T.t, fontWeight: 600 }}>{label}</span>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-              <span style={{ width: 6, height: 6, borderRadius: "50%", background: STATUS_COLOR[progress[key]], animation: ["searching", "analyzing", "working"].includes(progress[key]) ? "pulse 1s infinite" : "none" }} />
-              <span style={{ fontSize: 9, color: STATUS_COLOR[progress[key]], fontFamily: T.mn, fontWeight: 600, letterSpacing: "0.08em" }}>{STATUS_LABEL[progress[key]]}</span>
+              <span style={{ width: 6, height: 6, borderRadius: "50%", background: STATUS_COLOR[progress[key as keyof AgentProgressMap]], animation: ["searching", "analyzing", "working"].includes(progress[key as keyof AgentProgressMap]) ? "pulse 1s infinite" : "none" }} />
+              <span style={{ fontSize: 9, color: STATUS_COLOR[progress[key as keyof AgentProgressMap]], fontFamily: T.mn, fontWeight: 600, letterSpacing: "0.08em" }}>{STATUS_LABEL[progress[key as keyof AgentProgressMap]]}</span>
             </div>
           </div>
         ))}

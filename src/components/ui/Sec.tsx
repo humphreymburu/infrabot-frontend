@@ -1,7 +1,14 @@
 import { useState } from "react";
 import { T, S } from "../../lib/theme";
 
-export function Sec({ title, icon, defaultOpen = true, children }) {
+interface SecProps {
+  title: string;
+  icon: string;
+  defaultOpen?: boolean;
+  children: React.ReactNode;
+}
+
+export function Sec({ title, icon, defaultOpen = true, children }: SecProps) {
   const [open, setOpen] = useState(defaultOpen);
   return (
     <div style={{ background: T.s, border: `1px solid ${T.b}`, borderRadius: 12, marginBottom: S.m, overflow: "hidden", boxShadow: "0 2px 8px rgba(15,23,42,0.04)" }}>

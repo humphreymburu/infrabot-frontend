@@ -1,4 +1,6 @@
-export const initialState = {
+import type { AppState, Action } from "../types";
+
+export const initialState: AppState = {
   phase: "idle", // idle | intake | researching | evaluating | revising | synthesizing | done | error
   input: "",
   context: {
@@ -33,7 +35,7 @@ export const initialState = {
   expandedModule: null,
 };
 
-export function reducer(state, action) {
+export function reducer(state: AppState, action: Action): AppState {
   switch (action.type) {
     case "SET_INPUT": return { ...state, input: action.value };
     case "SET_CONTEXT": return { ...state, context: { ...state.context, ...action.value } };

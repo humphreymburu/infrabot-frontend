@@ -8,23 +8,26 @@ import {
   STRATEGY_AGENT_PROMPT, EVALUATOR_PROMPT, SYNTHESIS_PROMPT,
 } from "../lib/prompts";
 import { AGENT_PROMPTS, AGENT_BRIEF_KEYS } from "../lib/constants";
+import type { Action, AltConfig, Brief } from "../types";
+
+type ErrorReportingWindow = Window & { __reportError?: (msg: string) => void };
 
 const apiKey = import.meta.env.VITE_ANTHROPIC_API_KEY || "";
 
 export function useAppLogic() {
   const [state, dispatch] = useReducer(reducer, initialState);
 
-  const [altProvider, setAltProvider] = useState(() => {
+  const [altProvider, setAltProvider] = useState<string>(() => {
     try { return localStorage.getItem("tda-alt-provider") || import.meta.env.VITE_ALT_PROVIDER || ""; }
     catch { return import.meta.env.VITE_ALT_PROVIDER || ""; }
   });
 
-  const [altModel, setAltModel] = useState(() => {
+  const [altModel, setAltModel] = useState<string>(() => {
     try { return localStorage.getItem("tda-alt-model") || import.meta.env.VITE_ALT_MODEL || ""; }
     catch { return import.meta.env.VITE_ALT_MODEL || ""; }
   });
 
-  const [altApiKey, setAltApiKey] = useState(() => {
+  const [altApiKey, setAltApiKey] = useState<string>(() => {
     try {
       return localStorage.getItem("tda-alt-api-key") ||
         getEnvKeyForProvider(localStorage.getItem("tda-alt-provider") || import.meta.env.VITE_ALT_PROVIDER || "");
@@ -32,7 +35,7 @@ export function useAppLogic() {
   });
 
   const [showMoreExamples, setShowMoreExamples] = useState(false);
-  const resultRef = useRef(null);
+  const resultRef = useRef<HTMLDivElement | null>(null);
   // Workspace isolation: each analysis run gets a unique ID. dispatch calls from
   // stale runs are dropped so a second analysis never corrupts the first run's state.
   const runId = useRef(0);
@@ -47,8 +50,11 @@ export function useAppLogic() {
 
   // Global error reporter
   useEffect(() => {
-    window.__reportError = (msg) => dispatch({ type: "SET_ERROR", value: msg || "Something went wrong." });
-    return () => { delete window.__reportError; };
+    const w = window as ErrorReportingWindow;
+    w.__reportError = (msg) => dispatch({ type: "SET_ERROR", value: msg || "Something went wrong." });
+    return () => {
+      delete w.__reportError;
+    };
   }, []);
 
   // Load history from localStorage on mount
@@ -56,7 +62,7 @@ export function useAppLogic() {
     try {
       const stored = localStorage.getItem("tda-brief-history");
       if (stored) {
-        JSON.parse(stored).forEach((h) => dispatch({ type: "ADD_HISTORY", value: h }));
+        (JSON.parse(stored) as Brief[]).forEach((h) => dispatch({ type: "ADD_HISTORY", value: h }));
       }
     } catch {}
   }, []);
@@ -69,9 +75,9 @@ export function useAppLogic() {
   }, [state.history]);
 
   const effectiveAltModel = altModel || (altProvider ? PROVIDERS[altProvider]?.defaultModel : "") || "";
-  const altConfig = altApiKey && altProvider ? { provider: altProvider, model: effectiveAltModel, apiKey: altApiKey } : null;
+  const altConfig: AltConfig | null = altApiKey && altProvider ? { provider: altProvider, model: effectiveAltModel, apiKey: altApiKey } : null;
 
-  const getMainInput = useCallback(() => {
+  const getMainInput = useCallback((): string => {
     const ctx = state.context;
     const main = (state.input || "").trim();
     const guided = [ctx.guidedStep1, ctx.guidedStep2, ctx.guidedStep3].filter(Boolean).join("\n\n").trim();
@@ -79,7 +85,7 @@ export function useAppLogic() {
     return main || guided;
   }, [state.context, state.input]);
 
-  const buildUserMessage = useCallback(() => {
+  const buildUserMessage = useCallback((): string => {
     const ctx = state.context;
     let msg = getMainInput();
     if (ctx.budget) msg += `\n\nMonthly budget constraint: ${ctx.budget}`;
@@ -88,7 +94,7 @@ export function useAppLogic() {
     if (ctx.cloud) msg += `\nPrimary cloud: ${ctx.cloud}`;
     if (ctx.riskAppetite) msg += `\nRisk appetite: ${ctx.riskAppetite}`;
     if (ctx.compliance.length) msg += `\nCompliance: ${ctx.compliance.join(", ")}`;
-    if (ctx.uploadedData) msg += `\n\nAttached document (${ctx.uploadedData.name}):\n${ctx.uploadedData.content.slice(0, 5000)}`;
+    if (ctx.uploadedData) msg += `\n\nAttached document (${ctx.uploadedData.name}):\n${ctx.uploadedData.content.slice(0, 2000)}`;
 
     const sc = state.scenarioOverrides;
     if (sc.trafficMultiplier && sc.trafficMultiplier !== "1x") msg += `\n\nSCENARIO: Assume ${sc.trafficMultiplier} current traffic load.`;
@@ -98,14 +104,14 @@ export function useAppLogic() {
     return msg;
   }, [getMainInput, state.context, state.scenarioOverrides]);
 
-  const analyze = useCallback(async (text) => {
+  const analyze = useCallback(async (text?: string): Promise<void> => {
     const query = text || getMainInput();
     if (!query.trim()) return;
     if (text) dispatch({ type: "SET_INPUT", value: text });
 
     const thisRun = ++runId.current;
     // Gate all dispatches: if a newer run starts, stale callbacks become no-ops
-    const safe = (action) => { if (runId.current === thisRun) dispatch(action); };
+    const safe = (action: Action) => { if (runId.current === thisRun) dispatch(action); };
 
     console.log("[Atlas AI] Analysis started");
     safe({ type: "SET_PHASE", value: "researching" });
@@ -127,52 +133,126 @@ export function useAppLogic() {
     }
 
     try {
-      // PHASE 1: 4 specialist agents (concurrency 2) — ops covers both SRE + DevOps
-      console.log("[Atlas AI] Phase 1: specialist agents — concurrency 2");
+      const ctx = state.context;
+      // PHASE 1: 4 specialist agents (concurrency 1) — lower burst TPM to avoid 429.
+      const specialistConcurrency = 1;
+      console.log(`[Atlas AI] Phase 1: specialist agents — concurrency ${specialistConcurrency}`);
       const [costResult, archResult, opsResult, strategyResult] = await runWithConcurrency([
         () => callAgent(COST_AGENT_PROMPT, userMsg, safe, "cost", apiKey),
         () => callAgent(ARCH_AGENT_PROMPT, userMsg, safe, "arch", apiKey),
         () => callAgent(OPERATIONS_AGENT_PROMPT, userMsg, safe, "ops", apiKey),
         () => callAgent(STRATEGY_AGENT_PROMPT, userMsg, safe, "strategy", apiKey),
-      ], 2);
+      ], specialistConcurrency);
       console.log("[Atlas AI] Phase 1: done");
 
-      // PHASE 2: Devil's Advocate evaluator
-      console.log("[Atlas AI] Phase 2: Critical Review", altConfig ? `→ ${altConfig.provider}/${altConfig.model}` : "→ Anthropic");
-      safe({ type: "SET_PHASE", value: "evaluating" });
       // Drop failed agents so parse errors don't poison the evaluator
-      let prelimBrief = {
+      let prelimBrief: Record<string, Record<string, unknown> | null> = {
         cost:         costResult?.error  ? null : costResult,
         architecture: archResult?.error  ? null : archResult,
         operations:   opsResult?.error   ? null : opsResult,
         strategy:     strategyResult?.error ? null : strategyResult,
       };
-      let evalResult;
-
-      // Item 3: semantic distillation via Haiku instead of mechanical string truncation
-      const distilled = await distillAgents(prelimBrief, apiKey);
-      const evalInput = `Review this preliminary tech decision brief and find weaknesses:\n\n${JSON.stringify(distilled)}`;
-      console.log(`[Atlas AI] Evaluator input: ~${estimateTokens(evalInput)} tokens`);
-
-      if (altConfig) {
-        safe({ type: "UPDATE_AGENT", agent: "evaluator", status: "searching" });
-        try {
-          const endpoint = getAltEndpoint(altConfig.provider);
-          const raw = await callOpenAICompat(EVALUATOR_PROMPT, evalInput, { endpoint, model: altConfig.model, apiKey: altConfig.apiKey });
-          evalResult = JSON.parse(raw.replace(/```json|```/g, "").trim());
-          safe({ type: "UPDATE_AGENT", agent: "evaluator", status: "done" });
-        } catch (e) {
-          console.warn("[Atlas AI] Alt evaluator failed, falling back to Anthropic:", e?.message);
-          safe({ type: "UPDATE_AGENT", agent: "evaluator", status: "error" });
-          evalResult = await callAgent(EVALUATOR_PROMPT, evalInput, safe, "evaluator", apiKey, "claude-sonnet-4-6");
-        }
-      } else {
-        evalResult = await callAgent(EVALUATOR_PROMPT, evalInput, safe, "evaluator", apiKey, "claude-sonnet-4-6");
+      const availableSpecialists = Object.values(prelimBrief).filter(Boolean).length;
+      if (availableSpecialists < 2) {
+        throw new Error("Insufficient specialist output due to API rate limits (HTTP 429). Please wait about 1 minute and run again.");
       }
-      console.log("[Atlas AI] Phase 2: done");
+      // Decide whether to run Devil's Advocate evaluator for this run.
+      const lowerMsg = userMsg.toLowerCase();
+      const wantsDevil =
+        lowerMsg.includes("devil's advocate") ||
+        lowerMsg.includes("devils advocate") ||
+        lowerMsg.includes("devil advocate") ||
+        lowerMsg.includes("devil mode") ||
+        lowerMsg.includes("critical review");
+      const isMigration =
+        lowerMsg.includes("migration") ||
+        lowerMsg.includes("migrate") ||
+        lowerMsg.includes("replatform") ||
+        lowerMsg.includes("rewrite") ||
+        lowerMsg.includes("re-architecture") ||
+        lowerMsg.includes("lift and shift") ||
+        lowerMsg.includes("lift-and-shift");
+      const hasBudget = Boolean(ctx.budget && ctx.budget.trim());
+      const highRisk = ctx.riskAppetite === "aggressive";
+      const shouldRunEvaluator = wantsDevil || isMigration || hasBudget || highRisk;
+
+      let evalResult: Record<string, unknown>;
+
+      if (shouldRunEvaluator) {
+        // PHASE 2: Devil's Advocate evaluator
+        console.log(
+          "[Atlas AI] Phase 2: Critical Review",
+          altConfig ? `→ ${altConfig.provider}/${altConfig.model}` : "→ Anthropic",
+        );
+        safe({ type: "SET_PHASE", value: "evaluating" });
+
+        // Item 3: semantic distillation via Haiku instead of mechanical string truncation
+        const distilled = await distillAgents(prelimBrief as Record<string, unknown>, apiKey);
+        const evalInput = `Review this preliminary tech decision brief and find weaknesses:\n\n${JSON.stringify(
+          distilled,
+        )}`;
+        console.log(`[Atlas AI] Evaluator input: ~${estimateTokens(evalInput)} tokens`);
+
+        if (altConfig) {
+          safe({ type: "UPDATE_AGENT", agent: "evaluator", status: "searching" });
+          try {
+            const endpoint = getAltEndpoint(altConfig.provider) ?? "";
+            const raw = await callOpenAICompat(EVALUATOR_PROMPT, evalInput, {
+              endpoint,
+              model: altConfig.model,
+              apiKey: altConfig.apiKey,
+              maxTokens: 900,
+            });
+            evalResult = JSON.parse(raw.replace(/```json|```/g, "").trim()) as Record<string, unknown>;
+            safe({ type: "UPDATE_AGENT", agent: "evaluator", status: "done" });
+          } catch (e) {
+            const err = e as Error;
+            console.warn("[Atlas AI] Alt evaluator failed, falling back to Anthropic:", err?.message);
+            safe({ type: "UPDATE_AGENT", agent: "evaluator", status: "error" });
+            evalResult = await callAgent(
+              EVALUATOR_PROMPT,
+              evalInput,
+              safe,
+              "evaluator",
+              apiKey,
+              "claude-sonnet-4-6",
+            );
+          }
+        } else {
+          evalResult = await callAgent(
+            EVALUATOR_PROMPT,
+            evalInput,
+            safe,
+            "evaluator",
+            apiKey,
+            "claude-sonnet-4-6",
+          );
+        }
+        if (evalResult?.error) {
+          throw new Error(`Critical Review failed: ${String(evalResult.error)}`);
+        }
+        console.log("[Atlas AI] Phase 2: done");
+      } else {
+        console.log(
+          "[Atlas AI] Phase 2: evaluator skipped (no high-risk signals; saving tokens for this run).",
+        );
+        safe({ type: "UPDATE_AGENT", agent: "evaluator", status: "done" });
+        evalResult = {
+          overall_assessment:
+            "Evaluator was skipped for this run to reduce token usage; no explicit high-risk signals were detected.",
+          challenges: [],
+          missing_considerations: [],
+          cost_flags: [],
+          timeline_flags: [],
+          revised_confidence: undefined,
+          revised_verdict: undefined,
+          revision_needed: {},
+        } as Record<string, unknown>;
+      }
 
       // PHASE 2.5: Optimizer — re-run flagged agents; surface critiques in UI
-      const toRevise = Object.entries(evalResult?.revision_needed || {}).filter(([, reason]) => reason);
+      const revisionNeeded = (evalResult?.revision_needed as Record<string, string | null> | undefined) || {};
+      const toRevise = Object.entries(revisionNeeded).filter(([, reason]) => reason) as [string, string][];
       if (toRevise.length > 0) {
         console.log(`[Atlas AI] Phase 2.5: Optimizer — revising ${toRevise.length} agent(s):`, toRevise.map(([k]) => k).join(", "));
         safe({ type: "SET_PHASE", value: "revising" });
@@ -192,7 +272,7 @@ export function useAppLogic() {
       // PHASE 3: Synthesis — slim all results before sending to Sonnet
       console.log("[Atlas AI] Phase 3: synthesis", altConfig ? `→ ${altConfig.provider}/${altConfig.model}` : "→ Anthropic");
       safe({ type: "SET_PHASE", value: "synthesizing" });
-      const allResults = slimPayload({ ...prelimBrief, devils_advocate: evalResult });
+      const allResults = slimPayload({ ...prelimBrief, devils_advocate: evalResult }) as Record<string, unknown>;
       console.log(`[Atlas AI] Synthesis payload: ~${estimateTokens(JSON.stringify(allResults))} tokens`);
       const finalBrief = await callSynthesis(SYNTHESIS_PROMPT, allResults, safe, apiKey, altConfig);
       console.log("[Atlas AI] Phase 3: done");
@@ -200,15 +280,16 @@ export function useAppLogic() {
       finalBrief._timestamp = new Date().toISOString();
       finalBrief.devils_advocate = evalResult;
 
-      safe({ type: "SET_BRIEF", value: finalBrief });
-      safe({ type: "ADD_HISTORY", value: finalBrief });
+      safe({ type: "SET_BRIEF", value: finalBrief as Brief });
+      safe({ type: "ADD_HISTORY", value: finalBrief as Brief });
       setTimeout(() => resultRef.current?.scrollIntoView({ behavior: "smooth" }), 200);
       console.log("[Atlas AI] Analysis complete");
     } catch (e) {
-      console.error("[Atlas AI] Analysis failed:", e?.message ?? e, e?.stack ?? "");
-      safe({ type: "SET_ERROR", value: `Analysis failed: ${e?.message ?? String(e)}. Please try again.` });
+      const err = e as Error;
+      console.error("[Atlas AI] Analysis failed:", err?.message ?? e, err?.stack ?? "");
+      safe({ type: "SET_ERROR", value: `Analysis failed: ${err?.message ?? String(e)}. Please try again.` });
     }
-  }, [getMainInput, buildUserMessage, apiKey, altConfig]);
+  }, [getMainInput, buildUserMessage, altConfig, state.history, state.context]);
 
   const handleScenarioReanalyze = useCallback(() => {
     // Do NOT pass buildUserMessage() as text — that would write the expanded
@@ -217,7 +298,7 @@ export function useAppLogic() {
     analyze();
   }, [analyze]);
 
-  const handleLoadHistory = useCallback((h) => {
+  const handleLoadHistory = useCallback((h: Brief) => {
     dispatch({ type: "SET_BRIEF", value: h });
     dispatch({ type: "SET_TAB", value: "brief" });
   }, []);

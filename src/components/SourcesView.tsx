@@ -1,11 +1,17 @@
 import { T } from "../lib/theme";
 import { Sec } from "./ui/Sec";
 import { Badge } from "./ui/Badge";
+import type { Brief, SearchEntry } from "../types";
 
-export function SourcesView({ d, searchLog }) {
+interface SourcesViewProps {
+  d: Brief | null;
+  searchLog: SearchEntry[];
+}
+
+export function SourcesView({ d, searchLog }: SourcesViewProps) {
   return (
     <div style={{ animation: "briefIn 0.5s ease" }}>
-      {d?.research_sources?.length > 0 && (
+      {d?.research_sources && d.research_sources.length > 0 && (
         <Sec title={`Verified Sources (${d.research_sources.length})`} icon="🔍">
           {d.research_sources.map((s, i) => (
             <div key={i} style={{ padding: "8px 0", borderBottom: `1px solid ${T.b}`, fontSize: 12 }}>
