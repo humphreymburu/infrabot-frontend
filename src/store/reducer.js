@@ -19,13 +19,14 @@ export const initialState = {
   agentProgress: {
     cost: "pending",
     arch: "pending",
-    sre: "pending",
-    devops: "pending",
+    ops: "pending",
     strategy: "pending",
     evaluator: "pending",
     synthesis: "pending",
   },
   error: null,
+  evalCritiques: null,   // [["cost"|"arch"|"ops"|"strategy", "critique text"], ...]
+  compareWith: null,     // history brief selected for diff comparison
   scenarioOverrides: {},
   activeTab: "brief",
   showIntake: true,
@@ -44,11 +45,14 @@ export function reducer(state, action) {
     case "UPDATE_AGENT": return { ...state, agentProgress: { ...state.agentProgress, [action.agent]: action.status } };
     case "RESET_AGENTS": return {
       ...state,
+      evalCritiques: null,
       agentProgress: {
-        cost: "pending", arch: "pending", sre: "pending", devops: "pending",
+        cost: "pending", arch: "pending", ops: "pending",
         strategy: "pending", evaluator: "pending", synthesis: "pending",
       },
     };
+    case "SET_EVAL_CRITIQUES": return { ...state, evalCritiques: action.value };
+    case "SET_COMPARE": return { ...state, compareWith: action.value };
     case "SET_TAB": return { ...state, activeTab: action.value };
     case "TOGGLE_INTAKE": return { ...state, showIntake: !state.showIntake };
     case "ADD_HISTORY": return { ...state, history: [action.value, ...state.history].slice(0, 20) };

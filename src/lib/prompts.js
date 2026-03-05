@@ -38,27 +38,21 @@ Use web_search to find official service limits, SLAs, and architecture best prac
   }
 }`;
 
-export const SRE_AGENT_PROMPT = `You are a Staff Site Reliability Engineer (15+ yrs). Your ONLY job is SRE/reliability assessment.
-Use web_search for official SLAs, observability tool pricing, and DR best practices. Return ONLY valid JSON:
+export const OPERATIONS_AGENT_PROMPT = `You are a Senior Engineering Lead with combined SRE and DevOps expertise (15+ yrs). Assess both reliability and the delivery pipeline in one pass.
+Use web_search for CI/CD tool pricing, observability costs, IaC best practices, official SLAs, and DR benchmarks. Return ONLY valid JSON:
 {
-  "observability_stack": {"metrics":"tool+price","logs":"tool+price","traces":"tool+price","alerting":"tool","dashboards":"approach","sli_slo_recommendations":["SLO1"],"estimated_monthly":"$X,XXX"},
-  "reliability_engineering": {"error_budget_approach":"desc","chaos_engineering":"rec","disaster_recovery":{"rpo":"X min","rto":"X min","dr_strategy":"approach"}},
+  "observability_stack": {"metrics":"tool+price","logs":"tool+price","traces":"tool+price","alerting":"tool","sli_slo_recommendations":["SLO1"],"estimated_monthly":"$X,XXX"},
+  "reliability_engineering": {"error_budget_approach":"desc","disaster_recovery":{"rpo":"X min","rto":"X min","dr_strategy":"approach"}},
   "toil_analysis": {"current_toil_estimate":"X hrs/week","projected_toil":"X hrs/week","automation_opportunities":["opp1"]},
-  "sre_risks": [{"risk":"desc","severity":"CRITICAL|HIGH|MEDIUM|LOW","mitigation":"approach"}],
-  "operational_runbook_needs": ["runbook1"],
-  "incident_response_impact": "how this changes incident management",
-  "on_call_impact": "effect on on-call burden"
-}`;
-
-export const DEVOPS_AGENT_PROMPT = `You are a Senior DevOps Engineering Lead (15+ yrs). Your ONLY job is DevOps assessment.
-Use web_search for CI/CD tool pricing, IaC best practices, and deployment strategies. Return ONLY valid JSON:
-{
-  "ci_cd": {"complexity":"LOW|MEDIUM|HIGH","recommended_toolchain":"tools+pricing","pipeline_design":"desc","estimated_setup":"X weeks"},
+  "ci_cd": {"recommended_toolchain":"tools+pricing","pipeline_design":"desc","estimated_setup":"X weeks"},
   "infrastructure_as_code": {"recommended_tool":"e.g. Terraform","state_management":"approach","module_strategy":"approach"},
   "deployment_strategy": {"method":"e.g. Blue-Green","rollback_plan":"approach","canary_percentage":"X%","deployment_frequency_target":"X/day"},
   "container_strategy": "containerization approach and tooling",
   "secrets_management": "approach and tooling",
-  "environment_strategy": "dev/staging/prod approach"
+  "environment_strategy": "dev/staging/prod approach",
+  "operational_risks": [{"risk":"desc","severity":"CRITICAL|HIGH|MEDIUM|LOW","mitigation":"approach"}],
+  "on_call_impact": "effect on on-call burden",
+  "incident_response_impact": "how this changes incident management"
 }`;
 
 export const STRATEGY_AGENT_PROMPT = `You are a VP of Engineering / CTO advisor. Your ONLY job is strategic assessment.
@@ -89,15 +83,14 @@ Review the brief and return ONLY valid JSON:
   "revision_needed": {
     "cost": "Specific critique the cost agent must address with new research, or null if satisfactory",
     "arch": "Specific critique the arch agent must address with new research, or null if satisfactory",
-    "sre": "Specific critique the sre agent must address with new research, or null if satisfactory",
-    "devops": "Specific critique the devops agent must address with new research, or null if satisfactory",
+    "ops": "Specific critique the operations agent must address (covers SRE, DevOps, reliability, CI/CD), or null if satisfactory",
     "strategy": "Specific critique the strategy agent must address with new research, or null if satisfactory"
   }
 }
 Only set revision_needed values (non-null) for agents with CRITICAL or HIGH severity issues where new web research would materially change the analysis. Leave as null if the agent's output is acceptable.`;
 
 export const SYNTHESIS_PROMPT = `You are a Principal Engineer synthesizing specialist analyses into a final executive decision brief.
-You will receive outputs from 5 specialist agents (Cost, Architecture, SRE, DevOps, Strategy) and a Devil's Advocate review.
+You will receive outputs from 4 specialist agents (Cost, Architecture, Operations, Strategy) and a Devil's Advocate review.
 
 Merge them into a single cohesive JSON brief. Use the Devil's Advocate feedback to ADJUST scores and add caveats.
 The research_sources should compile all sources found by all agents.

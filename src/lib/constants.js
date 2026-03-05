@@ -1,8 +1,7 @@
 import {
   COST_AGENT_PROMPT,
   ARCH_AGENT_PROMPT,
-  SRE_AGENT_PROMPT,
-  DEVOPS_AGENT_PROMPT,
+  OPERATIONS_AGENT_PROMPT,
   STRATEGY_AGENT_PROMPT,
 } from "./prompts";
 
@@ -10,16 +9,14 @@ import {
 export const AGENT_PROMPTS = {
   cost: COST_AGENT_PROMPT,
   arch: ARCH_AGENT_PROMPT,
-  sre: SRE_AGENT_PROMPT,
-  devops: DEVOPS_AGENT_PROMPT,
+  ops: OPERATIONS_AGENT_PROMPT,
   strategy: STRATEGY_AGENT_PROMPT,
 };
 
 export const AGENT_BRIEF_KEYS = {
   cost: "cost",
   arch: "architecture",
-  sre: "sre",
-  devops: "devops",
+  ops: "operations",
   strategy: "strategy",
 };
 

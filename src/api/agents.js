@@ -128,7 +128,7 @@ export async function distillAgents(agentResults, apiKey) {
           role: "user",
           content: `Summarize each section of this tech decision analysis into exactly 3 concise key findings.
 Return ONLY valid JSON with this exact shape (no other text):
-{ "cost": ["finding1","finding2","finding3"], "architecture": [...], "sre": [...], "devops": [...], "strategy": [...] }
+{ "cost": ["finding1","finding2","finding3"], "architecture": [...], "operations": [...], "strategy": [...] }
 
 Analysis:
 ${JSON.stringify(slim)}`,

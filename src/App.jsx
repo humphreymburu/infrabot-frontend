@@ -9,6 +9,7 @@ import { BriefView } from "./components/BriefView";
 import { DevilsView } from "./components/DevilsView";
 import { SourcesView } from "./components/SourcesView";
 import { HistoryView } from "./components/HistoryView";
+import { DiffView } from "./components/DiffView";
 import { Tab } from "./components/ui/Badge";
 
 export default function App() {
@@ -18,6 +19,11 @@ export default function App() {
     effectiveAltModel, showMoreExamples, setShowMoreExamples,
     resultRef, getMainInput, analyze, handleScenarioReanalyze, handleLoadHistory,
   } = useAppLogic();
+
+  const handleCompare = (h) => {
+    dispatch({ type: "SET_COMPARE", value: h });
+    dispatch({ type: "SET_TAB", value: "changes" });
+  };
 
   const isAnalyzing = ["researching", "evaluating", "revising", "synthesizing"].includes(state.phase);
 
@@ -177,9 +183,15 @@ export default function App() {
               </p>
               {[
                 { done: true, active: false, label: "Parsing context" },
-                { done: ["evaluating", "revising", "synthesizing"].includes(state.phase), active: state.phase === "researching", label: "Specialist agents (cost \u00b7 arch \u00b7 sre \u00b7 devops \u00b7 strategy)" },
+                { done: ["evaluating", "revising", "synthesizing"].includes(state.phase), active: state.phase === "researching", label: "Specialist agents (cost · arch · operations · strategy)" },
                 { done: ["revising", "synthesizing"].includes(state.phase), active: state.phase === "evaluating", label: "Devil's Advocate review" },
-                { done: state.phase === "synthesizing", active: state.phase === "revising", label: "Optimizer: revising flagged domains" },
+                {
+                  done: state.phase === "synthesizing",
+                  active: state.phase === "revising",
+                  label: state.evalCritiques?.length
+                    ? `Optimizer: revising ${state.evalCritiques.map(([k]) => k).join(", ")} — ${state.evalCritiques[0]?.[1]?.slice(0, 70)}…`
+                    : "Optimizer: revising flagged domains",
+                },
                 { done: false, active: state.phase === "synthesizing", label: "Synthesis" },
               ].map((step, i) => (
                 <div key={i} style={{ display: "flex", alignItems: "center", gap: S.s, padding: `${S.s}px 0`, fontSize: 13, color: step.done ? T.m : T.t, fontFamily: T.sn }}>
@@ -212,6 +224,9 @@ export default function App() {
               <Tab active={state.activeTab === "sources"} label="Sources" onClick={() => dispatch({ type: "SET_TAB", value: "sources" })} count={state.searchLog.length} />
               <Tab active={state.activeTab === "scenarios"} label="Scenarios" onClick={() => dispatch({ type: "SET_TAB", value: "scenarios" })} />
               <Tab active={state.activeTab === "history"} label="History" onClick={() => dispatch({ type: "SET_TAB", value: "history" })} count={state.history.length} />
+              {(state.compareWith || state.history.length >= 2) && (
+                <Tab active={state.activeTab === "changes"} label="What Changed" onClick={() => dispatch({ type: "SET_TAB", value: "changes" })} />
+              )}
               <button onClick={() => window.print()} style={{ marginLeft: "auto", background: "#FFFFFF", border: `1px solid ${T.b}`, borderRadius: 999, padding: "6px 14px", fontSize: 11, fontFamily: T.sn, fontWeight: 500, color: T.m, cursor: "pointer" }}>
                 Export to PDF
               </button>
@@ -220,7 +235,8 @@ export default function App() {
             {state.activeTab === "devils" && <DevilsView d={state.brief} />}
             {state.activeTab === "sources" && <SourcesView d={state.brief} searchLog={state.searchLog} />}
             {state.activeTab === "scenarios" && <ScenarioPanel state={state} dispatch={dispatch} onReanalyze={handleScenarioReanalyze} />}
-            {state.activeTab === "history" && <HistoryView history={state.history} onLoad={handleLoadHistory} />}
+            {state.activeTab === "history" && <HistoryView history={state.history} onLoad={handleLoadHistory} onCompare={handleCompare} currentBrief={state.brief} />}
+            {state.activeTab === "changes" && <DiffView current={state.history[0] ?? state.brief} previous={state.compareWith ?? state.history[1]} />}
           </div>
         )}
       </div>

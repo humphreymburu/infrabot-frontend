@@ -4,8 +4,8 @@ import { PROVIDERS, getEnvKeyForProvider, getAltEndpoint } from "../api/config";
 import { callOpenAICompat, runWithConcurrency, slimPayload, estimateTokens } from "../api/helpers";
 import { callAgent, callSynthesis, distillAgents } from "../api/agents";
 import {
-  COST_AGENT_PROMPT, ARCH_AGENT_PROMPT, SRE_AGENT_PROMPT,
-  DEVOPS_AGENT_PROMPT, STRATEGY_AGENT_PROMPT, EVALUATOR_PROMPT, SYNTHESIS_PROMPT,
+  COST_AGENT_PROMPT, ARCH_AGENT_PROMPT, OPERATIONS_AGENT_PROMPT,
+  STRATEGY_AGENT_PROMPT, EVALUATOR_PROMPT, SYNTHESIS_PROMPT,
 } from "../lib/prompts";
 import { AGENT_PROMPTS, AGENT_BRIEF_KEYS } from "../lib/constants";
 
@@ -33,6 +33,9 @@ export function useAppLogic() {
 
   const [showMoreExamples, setShowMoreExamples] = useState(false);
   const resultRef = useRef(null);
+  // Workspace isolation: each analysis run gets a unique ID. dispatch calls from
+  // stale runs are dropped so a second analysis never corrupts the first run's state.
+  const runId = useRef(0);
 
   useEffect(() => {
     try {
@@ -100,11 +103,15 @@ export function useAppLogic() {
     if (!query.trim()) return;
     if (text) dispatch({ type: "SET_INPUT", value: text });
 
+    const thisRun = ++runId.current;
+    // Gate all dispatches: if a newer run starts, stale callbacks become no-ops
+    const safe = (action) => { if (runId.current === thisRun) dispatch(action); };
+
     console.log("[Atlas AI] Analysis started");
-    dispatch({ type: "SET_PHASE", value: "researching" });
-    dispatch({ type: "CLEAR_SEARCHES" });
-    dispatch({ type: "RESET_AGENTS" });
-    dispatch({ type: "SET_TAB", value: "brief" });
+    safe({ type: "SET_PHASE", value: "researching" });
+    safe({ type: "CLEAR_SEARCHES" });
+    safe({ type: "RESET_AGENTS" });
+    safe({ type: "SET_TAB", value: "brief" });
 
     let userMsg = text ? text : buildUserMessage();
 
@@ -120,26 +127,24 @@ export function useAppLogic() {
     }
 
     try {
-      // PHASE 1: 5 specialist agents (concurrency 2)
+      // PHASE 1: 4 specialist agents (concurrency 2) — ops covers both SRE + DevOps
       console.log("[Atlas AI] Phase 1: specialist agents — concurrency 2");
-      const [costResult, archResult, sreResult, devopsResult, strategyResult] = await runWithConcurrency([
-        () => callAgent(COST_AGENT_PROMPT, userMsg, dispatch, "cost", apiKey),
-        () => callAgent(ARCH_AGENT_PROMPT, userMsg, dispatch, "arch", apiKey),
-        () => callAgent(SRE_AGENT_PROMPT, userMsg, dispatch, "sre", apiKey),
-        () => callAgent(DEVOPS_AGENT_PROMPT, userMsg, dispatch, "devops", apiKey),
-        () => callAgent(STRATEGY_AGENT_PROMPT, userMsg, dispatch, "strategy", apiKey),
+      const [costResult, archResult, opsResult, strategyResult] = await runWithConcurrency([
+        () => callAgent(COST_AGENT_PROMPT, userMsg, safe, "cost", apiKey),
+        () => callAgent(ARCH_AGENT_PROMPT, userMsg, safe, "arch", apiKey),
+        () => callAgent(OPERATIONS_AGENT_PROMPT, userMsg, safe, "ops", apiKey),
+        () => callAgent(STRATEGY_AGENT_PROMPT, userMsg, safe, "strategy", apiKey),
       ], 2);
       console.log("[Atlas AI] Phase 1: done");
 
       // PHASE 2: Devil's Advocate evaluator
       console.log("[Atlas AI] Phase 2: Critical Review", altConfig ? `→ ${altConfig.provider}/${altConfig.model}` : "→ Anthropic");
-      dispatch({ type: "SET_PHASE", value: "evaluating" });
-      // Item 1: drop failed agents so parse errors don't poison the evaluator
+      safe({ type: "SET_PHASE", value: "evaluating" });
+      // Drop failed agents so parse errors don't poison the evaluator
       let prelimBrief = {
-        cost:         costResult?.error     ? null : costResult,
-        architecture: archResult?.error     ? null : archResult,
-        sre:          sreResult?.error      ? null : sreResult,
-        devops:       devopsResult?.error   ? null : devopsResult,
+        cost:         costResult?.error  ? null : costResult,
+        architecture: archResult?.error  ? null : archResult,
+        operations:   opsResult?.error   ? null : opsResult,
         strategy:     strategyResult?.error ? null : strategyResult,
       };
       let evalResult;
@@ -150,32 +155,33 @@ export function useAppLogic() {
       console.log(`[Atlas AI] Evaluator input: ~${estimateTokens(evalInput)} tokens`);
 
       if (altConfig) {
-        dispatch({ type: "UPDATE_AGENT", agent: "evaluator", status: "searching" });
+        safe({ type: "UPDATE_AGENT", agent: "evaluator", status: "searching" });
         try {
           const endpoint = getAltEndpoint(altConfig.provider);
           const raw = await callOpenAICompat(EVALUATOR_PROMPT, evalInput, { endpoint, model: altConfig.model, apiKey: altConfig.apiKey });
           evalResult = JSON.parse(raw.replace(/```json|```/g, "").trim());
-          dispatch({ type: "UPDATE_AGENT", agent: "evaluator", status: "done" });
+          safe({ type: "UPDATE_AGENT", agent: "evaluator", status: "done" });
         } catch (e) {
           console.warn("[Atlas AI] Alt evaluator failed, falling back to Anthropic:", e?.message);
-          dispatch({ type: "UPDATE_AGENT", agent: "evaluator", status: "error" });
-          evalResult = await callAgent(EVALUATOR_PROMPT, evalInput, dispatch, "evaluator", apiKey, "claude-sonnet-4-6");
+          safe({ type: "UPDATE_AGENT", agent: "evaluator", status: "error" });
+          evalResult = await callAgent(EVALUATOR_PROMPT, evalInput, safe, "evaluator", apiKey, "claude-sonnet-4-6");
         }
       } else {
-        evalResult = await callAgent(EVALUATOR_PROMPT, evalInput, dispatch, "evaluator", apiKey, "claude-sonnet-4-6");
+        evalResult = await callAgent(EVALUATOR_PROMPT, evalInput, safe, "evaluator", apiKey, "claude-sonnet-4-6");
       }
       console.log("[Atlas AI] Phase 2: done");
 
-      // PHASE 2.5: Optimizer — re-run flagged agents
+      // PHASE 2.5: Optimizer — re-run flagged agents; surface critiques in UI
       const toRevise = Object.entries(evalResult?.revision_needed || {}).filter(([, reason]) => reason);
       if (toRevise.length > 0) {
         console.log(`[Atlas AI] Phase 2.5: Optimizer — revising ${toRevise.length} agent(s):`, toRevise.map(([k]) => k).join(", "));
-        dispatch({ type: "SET_PHASE", value: "revising" });
+        safe({ type: "SET_PHASE", value: "revising" });
+        safe({ type: "SET_EVAL_CRITIQUES", value: toRevise });
         for (const [agentKey, critique] of toRevise) {
           const prompt = AGENT_PROMPTS[agentKey];
           if (!prompt) continue;
           const revisedMsg = `${userMsg}\n\nCRITICAL FEEDBACK FROM REVIEWER — you MUST address this in your revised analysis:\n${critique}`;
-          const revisedResult = await callAgent(prompt, revisedMsg, dispatch, agentKey, apiKey);
+          const revisedResult = await callAgent(prompt, revisedMsg, safe, agentKey, apiKey);
           if (!revisedResult?.error) {
             prelimBrief = { ...prelimBrief, [AGENT_BRIEF_KEYS[agentKey]]: revisedResult };
           }
@@ -185,22 +191,22 @@ export function useAppLogic() {
 
       // PHASE 3: Synthesis — slim all results before sending to Sonnet
       console.log("[Atlas AI] Phase 3: synthesis", altConfig ? `→ ${altConfig.provider}/${altConfig.model}` : "→ Anthropic");
-      dispatch({ type: "SET_PHASE", value: "synthesizing" });
+      safe({ type: "SET_PHASE", value: "synthesizing" });
       const allResults = slimPayload({ ...prelimBrief, devils_advocate: evalResult });
       console.log(`[Atlas AI] Synthesis payload: ~${estimateTokens(JSON.stringify(allResults))} tokens`);
-      const finalBrief = await callSynthesis(SYNTHESIS_PROMPT, allResults, dispatch, apiKey, altConfig);
+      const finalBrief = await callSynthesis(SYNTHESIS_PROMPT, allResults, safe, apiKey, altConfig);
       console.log("[Atlas AI] Phase 3: done");
 
       finalBrief._timestamp = new Date().toISOString();
       finalBrief.devils_advocate = evalResult;
 
-      dispatch({ type: "SET_BRIEF", value: finalBrief });
-      dispatch({ type: "ADD_HISTORY", value: finalBrief });
+      safe({ type: "SET_BRIEF", value: finalBrief });
+      safe({ type: "ADD_HISTORY", value: finalBrief });
       setTimeout(() => resultRef.current?.scrollIntoView({ behavior: "smooth" }), 200);
       console.log("[Atlas AI] Analysis complete");
     } catch (e) {
       console.error("[Atlas AI] Analysis failed:", e?.message ?? e, e?.stack ?? "");
-      dispatch({ type: "SET_ERROR", value: `Analysis failed: ${e?.message ?? String(e)}. Please try again.` });
+      safe({ type: "SET_ERROR", value: `Analysis failed: ${e?.message ?? String(e)}. Please try again.` });
     }
   }, [getMainInput, buildUserMessage, apiKey, altConfig]);
 

@@ -4,8 +4,7 @@ import { Badge } from "./ui/Badge";
 const AGENTS = [
   { key: "cost", label: "Cost Modeler", icon: "$" },
   { key: "arch", label: "Architecture Analyst", icon: "◈" },
-  { key: "sre", label: "Reliability Engineer", icon: "⚙" },
-  { key: "devops", label: "DevOps Architect", icon: "▶" },
+  { key: "ops", label: "Operations & SRE", icon: "⚙" },
   { key: "strategy", label: "Strategy Agent", icon: "◆" },
   { key: "evaluator", label: "Critical Review", icon: "⚠" },
   { key: "synthesis", label: "Synthesis Engine", icon: "◉" },
