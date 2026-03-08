@@ -27,6 +27,8 @@ export default defineConfig(({ mode }) => {
             'anthropic-dangerous-direct-browser-access': 'true',
           },
         },
+        // Default backend proxy for all application API routes.
+        '/api': { target: 'http://127.0.0.1:8000', changeOrigin: true },
       },
     },
     build: {

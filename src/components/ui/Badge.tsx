@@ -49,16 +49,18 @@ interface BarProps {
 }
 
 export const Bar = ({ score, label, sub }: BarProps) => {
-  const s = score || 0, pct = (s / 10) * 100;
+  const hasScore = typeof score === "number";
+  const s = hasScore ? score : 0;
+  const pct = (s / 10) * 100;
   const c = s >= 8 ? T.g : s >= 6 ? T.y : s >= 4 ? T.o : T.rd;
   return (
     <div style={{ marginBottom: 10 }}>
       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 3 }}>
         <span style={{ fontSize: 12, color: T.m }}>{label}</span>
-        <span style={{ fontSize: 11, color: c, fontWeight: 700, fontFamily: T.mn }}>{s}/10</span>
+        <span style={{ fontSize: 11, color: hasScore ? c : T.d, fontWeight: 700, fontFamily: T.mn }}>{hasScore ? `${s}/10` : "—"}</span>
       </div>
       <div style={{ height: 5, background: T.b, borderRadius: 3, overflow: "hidden" }}>
-        <div style={{ height: "100%", width: `${pct}%`, background: c, borderRadius: 3, transition: "width 1s ease" }} />
+        <div style={{ height: "100%", width: `${hasScore ? pct : 0}%`, background: c, borderRadius: 3, transition: "width 1s ease" }} />
       </div>
       {sub && <div style={{ fontSize: 10, color: T.d, marginTop: 2 }}>{sub}</div>}
     </div>

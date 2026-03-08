@@ -50,12 +50,100 @@ export interface Alternative {
 
 export interface Brief {
   _timestamp?: string;
+  _run_id?: string;
+  decision_statement?: string;
+  context?: {
+    current_state?: string;
+    what_changed?: string;
+    constraints?: string[];
+    strategic_alignment?: string;
+  };
+  decision_criteria?: Array<{
+    criterion?: string;
+    weight_pct?: number;
+    why_it_matters?: string;
+  }>;
+  options_comparison?: {
+    options?: string[];
+    dimensions?: Array<{
+      dimension?: string;
+      option_a?: string;
+      option_b?: string;
+      assessment?: string;
+    }>;
+  };
+  financial_assumptions?: {
+    assumptions?: string[];
+    monthly_baseline?: string;
+    traffic_assumption?: string;
+    storage_assumption?: string;
+    growth_assumption?: string;
+    migration_cost?: string;
+    tco_3y?: string;
+  };
   meta?: {
     title?: string;
     proposal_summary?: string;
     verdict?: string;
     confidence_score?: number;
     executive_summary?: string;
+    policy?: {
+      mode?: string;
+      tier?: string;
+      path?: string;
+      enforced?: boolean;
+      enforced_full?: boolean;
+      selection_reason?: string;
+      constraints?: string[];
+    };
+    run_metrics?: {
+      elapsed_ms?: number;
+      stage_failures?: number;
+      specialists_available?: number;
+    };
+    guarantees?: {
+      risk_tier?: string;
+      pass?: boolean;
+      violations?: string[];
+      metrics?: Record<string, unknown>;
+      contract?: Record<string, unknown>;
+    };
+    lineage?: {
+      run_id?: string;
+      parent_run_id?: string | null;
+      checkpoint_id?: string | null;
+      policy_version?: string;
+      schema_version?: string;
+      prompt_bundle_version?: string;
+      source_snapshot_id?: string;
+      review_state?: string;
+      input_context_hash?: string;
+      review_history?: Array<{ review_id?: string; stage?: string; action?: string; reason?: string }>;
+      specialist_to_synthesis_map?: Record<string, boolean>;
+      scenario_id?: string;
+      scenario_parent_run_id?: string | null;
+      assumption_deltas?: Record<string, unknown>;
+    };
+    replay_fidelity?: {
+      mode?: string;
+      status?: string;
+      tool_hits?: number;
+      tool_misses?: number;
+      tool_recorded?: number;
+      llm_hits?: number;
+      llm_misses?: number;
+      llm_recorded?: number;
+    };
+    trust_contract?: {
+      advisory_not_authoritative?: boolean;
+      governance_not_legal_certification?: boolean;
+      degraded_not_approval?: boolean;
+      recommendation_bounded_by_evidence_and_policy?: boolean;
+      human_review_required_for_high_risk_adoption?: boolean;
+      degraded_result?: boolean;
+      governance_pass?: boolean;
+      confidence_score?: number;
+    };
   };
   cost_analysis?: {
     narrative?: string;
@@ -154,6 +242,11 @@ export interface Brief {
     owner?: string;
   }>;
   alternatives?: Alternative[];
+  decision_boundary?: {
+    recommend_option_a_if?: string[];
+    recommend_option_b_if?: string[];
+    what_flips_decision?: string[];
+  };
   implementation_roadmap?: {
     total_duration?: string;
     phases?: Array<{
@@ -176,6 +269,42 @@ export interface Brief {
     decision_deadline?: string;
     what_happens_if_we_wait?: string;
   };
+  evidence_governance?: {
+    risk_tier?: string;
+    citations_total?: number;
+    trusted_count?: number;
+    primary_count?: number;
+    tier_counts?: Record<string, number>;
+    blocked_urls?: string[];
+    min_citations_required?: number;
+    min_trusted_required?: number;
+    high_risk_claims_total?: number;
+    high_risk_claims_mapped?: number;
+    claim_citation_graph?: Array<{
+      claim_id?: string;
+      run_id?: string;
+      brief_section?: string;
+      claim_text?: string;
+      claim_class?: string;
+      source_id?: string;
+      source_url?: string;
+      source_span?: string;
+      support_strength?: string;
+      contradiction_status?: string;
+      governance_status?: string;
+    }>;
+    unsupported_claims_visible?: Array<{
+      claim_id?: string;
+      brief_section?: string;
+      claim_text?: string;
+      claim_class?: string;
+      source_url?: string;
+      governance_status?: string;
+      contradiction_status?: string;
+    }>;
+    violations?: string[];
+    pass?: boolean;
+  };
   research_sources?: Array<{ url?: string; title?: string; key_data?: string }>;
   devils_advocate?: {
     overall_assessment?: string;
@@ -192,6 +321,14 @@ export interface Brief {
     revised_verdict?: string;
     revision_needed?: Record<string, string | null>;
   };
+  verifier_claim_class_scores?: Record<string, { total?: number; supported?: number; score?: number }>;
+  field_provenance?: Record<string, {
+    status?: string;
+    claims?: number;
+    supported_ratio?: number;
+    weak_claims?: number;
+    contradicted_claims?: number;
+  }>;
 }
 
 export interface AppState {
@@ -234,6 +371,20 @@ export interface AltConfig {
   provider: string;
   model: string;
   apiKey: string;
+}
+
+export interface PolicyPreview {
+  mode: string;
+  tier: string;
+  path: string;
+  selection_reason: string;
+  constraints: string[];
+  max_refinement_cycles: number;
+  budgets: {
+    tokens: Record<string, number>;
+    tools: Record<string, number | boolean>;
+    timeouts: Record<string, number>;
+  };
 }
 
 export interface Provider {

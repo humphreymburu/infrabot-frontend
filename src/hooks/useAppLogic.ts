@@ -1,21 +1,16 @@
 import { useState, useRef, useCallback, useEffect, useReducer } from "react";
 import { reducer, initialState } from "../store/reducer";
-import { PROVIDERS, getEnvKeyForProvider, getAltEndpoint } from "../api/config";
-import { callOpenAICompat, runWithConcurrency, slimPayload, estimateTokens } from "../api/helpers";
-import { callAgent, callSynthesis, distillAgents } from "../api/agents";
-import {
-  COST_AGENT_PROMPT, ARCH_AGENT_PROMPT, OPERATIONS_AGENT_PROMPT,
-  STRATEGY_AGENT_PROMPT, EVALUATOR_PROMPT, SYNTHESIS_PROMPT,
-} from "../lib/prompts";
-import { AGENT_PROMPTS, AGENT_BRIEF_KEYS } from "../lib/constants";
-import type { Action, AltConfig, Brief } from "../types";
+import { PROVIDERS, getEnvKeyForProvider } from "../api/config";
+import type { Action, AltConfig, AgentKey, AgentStatus, AppPhase, Brief, PolicyPreview } from "../types";
 
 type ErrorReportingWindow = Window & { __reportError?: (msg: string) => void };
 
 const apiKey = import.meta.env.VITE_ANTHROPIC_API_KEY || "";
+const tenantId = import.meta.env.VITE_TENANT_ID || "local-dev";
 
 export function useAppLogic() {
   const [state, dispatch] = useReducer(reducer, initialState);
+  const activeAbort = useRef<AbortController | null>(null);
 
   const [altProvider, setAltProvider] = useState<string>(() => {
     try { return localStorage.getItem("tda-alt-provider") || import.meta.env.VITE_ALT_PROVIDER || ""; }
@@ -35,6 +30,9 @@ export function useAppLogic() {
   });
 
   const [showMoreExamples, setShowMoreExamples] = useState(false);
+  const [policyPreview, setPolicyPreview] = useState<PolicyPreview | null>(null);
+  const [policyPreviewLoading, setPolicyPreviewLoading] = useState(false);
+  const [latestRunId, setLatestRunId] = useState<string>("");
   const resultRef = useRef<HTMLDivElement | null>(null);
   // Workspace isolation: each analysis run gets a unique ID. dispatch calls from
   // stale runs are dropped so a second analysis never corrupts the first run's state.
@@ -104,192 +102,193 @@ export function useAppLogic() {
     return msg;
   }, [getMainInput, state.context, state.scenarioOverrides]);
 
+  const previewPolicy = useCallback(async (text?: string): Promise<void> => {
+    const userMsg = text ?? buildUserMessage();
+    if (!userMsg.trim()) {
+      setPolicyPreview(null);
+      return;
+    }
+    const intakePayload = {
+      budget: state.context.budget || undefined,
+      timeline: state.context.timeline || undefined,
+      risk_appetite: state.context.riskAppetite || undefined,
+      compliance: state.context.compliance.length ? state.context.compliance : undefined,
+    };
+    setPolicyPreviewLoading(true);
+    try {
+      const previewRes = await fetch("/api/policy-preview", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-tenant-id": tenantId },
+        body: JSON.stringify({
+          user_message: userMsg,
+          ...intakePayload,
+        }),
+      });
+      if (!previewRes.ok) return;
+      const preview = (await previewRes.json()) as PolicyPreview;
+      setPolicyPreview(preview);
+    } catch {
+      // Non-fatal; preview should not block analysis UX.
+    } finally {
+      setPolicyPreviewLoading(false);
+    }
+  }, [buildUserMessage, state.context]);
+
   const analyze = useCallback(async (text?: string): Promise<void> => {
     const query = text || getMainInput();
     if (!query.trim()) return;
     if (text) dispatch({ type: "SET_INPUT", value: text });
 
+    activeAbort.current?.abort();
+    const controller = new AbortController();
+    activeAbort.current = controller;
+
     const thisRun = ++runId.current;
-    // Gate all dispatches: if a newer run starts, stale callbacks become no-ops
     const safe = (action: Action) => { if (runId.current === thisRun) dispatch(action); };
 
-    console.log("[Atlas AI] Analysis started");
+    console.log("[Atlas AI] Analysis started (backend)");
+    setPolicyPreview(null);
+    safe({ type: "SET_ERROR", value: null });
     safe({ type: "SET_PHASE", value: "researching" });
     safe({ type: "CLEAR_SEARCHES" });
     safe({ type: "RESET_AGENTS" });
     safe({ type: "SET_TAB", value: "brief" });
 
-    let userMsg = text ? text : buildUserMessage();
+    let userMsg = text ?? buildUserMessage();
+    const intakePayload = {
+      budget: state.context.budget || undefined,
+      timeline: state.context.timeline || undefined,
+      risk_appetite: state.context.riskAppetite || undefined,
+      compliance: state.context.compliance.length ? state.context.compliance : undefined,
+    };
 
-    // Item 4: inject prior analysis context if a similar brief exists in history.
-    // Simple word-overlap match on title — cheap and effective for re-visits.
+    // Inject prior analysis context if a similar brief exists in history
     const queryWords = userMsg.toLowerCase().split(/\s+/).filter((w) => w.length > 4);
     const similar = state.history.find((h) => {
       const title = (h.meta?.title || "").toLowerCase();
       return queryWords.some((w) => title.includes(w));
     });
-    if (similar) {
-      userMsg += `\n\nPRIOR CONTEXT: A related analysis exists — "${similar.meta?.title}" (Verdict: ${similar.meta?.verdict}, Confidence: ${similar.meta?.confidence_score}/10). Summary: ${(similar.meta?.executive_summary || "").slice(0, 300)}`;
-    }
+    const priorContext = similar
+      ? `A related analysis exists — "${similar.meta?.title}" (Verdict: ${similar.meta?.verdict}, Confidence: ${similar.meta?.confidence_score}/10). Summary: ${(similar.meta?.executive_summary || "").slice(0, 300)}`
+      : null;
 
     try {
-      const ctx = state.context;
-      // PHASE 1: 4 specialist agents (concurrency 1) — lower burst TPM to avoid 429.
-      const specialistConcurrency = 1;
-      console.log(`[Atlas AI] Phase 1: specialist agents — concurrency ${specialistConcurrency}`);
-      const [costResult, archResult, opsResult, strategyResult] = await runWithConcurrency([
-        () => callAgent(COST_AGENT_PROMPT, userMsg, safe, "cost", apiKey),
-        () => callAgent(ARCH_AGENT_PROMPT, userMsg, safe, "arch", apiKey),
-        () => callAgent(OPERATIONS_AGENT_PROMPT, userMsg, safe, "ops", apiKey),
-        () => callAgent(STRATEGY_AGENT_PROMPT, userMsg, safe, "strategy", apiKey),
-      ], specialistConcurrency);
-      console.log("[Atlas AI] Phase 1: done");
+      await previewPolicy(userMsg);
 
-      // Drop failed agents so parse errors don't poison the evaluator
-      let prelimBrief: Record<string, Record<string, unknown> | null> = {
-        cost:         costResult?.error  ? null : costResult,
-        architecture: archResult?.error  ? null : archResult,
-        operations:   opsResult?.error   ? null : opsResult,
-        strategy:     strategyResult?.error ? null : strategyResult,
-      };
-      const availableSpecialists = Object.values(prelimBrief).filter(Boolean).length;
-      if (availableSpecialists < 2) {
-        throw new Error("Insufficient specialist output due to API rate limits (HTTP 429). Please wait about 1 minute and run again.");
+      const res = await fetch("/api/analyze/stream", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-tenant-id": tenantId },
+        signal: controller.signal,
+        body: JSON.stringify({
+          user_message: userMsg,
+          prior_context: priorContext ?? undefined,
+          ...intakePayload,
+        }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        const detail = Array.isArray(body.detail) ? body.detail.map((o: { msg?: string }) => o?.msg).filter(Boolean).join("; ") : body.detail;
+        throw new Error(String(detail ?? res.statusText));
       }
-      // Decide whether to run Devil's Advocate evaluator for this run.
-      const lowerMsg = userMsg.toLowerCase();
-      const wantsDevil =
-        lowerMsg.includes("devil's advocate") ||
-        lowerMsg.includes("devils advocate") ||
-        lowerMsg.includes("devil advocate") ||
-        lowerMsg.includes("devil mode") ||
-        lowerMsg.includes("critical review");
-      const isMigration =
-        lowerMsg.includes("migration") ||
-        lowerMsg.includes("migrate") ||
-        lowerMsg.includes("replatform") ||
-        lowerMsg.includes("rewrite") ||
-        lowerMsg.includes("re-architecture") ||
-        lowerMsg.includes("lift and shift") ||
-        lowerMsg.includes("lift-and-shift");
-      const hasBudget = Boolean(ctx.budget && ctx.budget.trim());
-      const highRisk = ctx.riskAppetite === "aggressive";
-      const shouldRunEvaluator = wantsDevil || isMigration || hasBudget || highRisk;
+      const backendRunId = res.headers.get("x-run-id");
+      if (backendRunId) {
+        setLatestRunId(backendRunId);
+        console.log(`[Atlas AI] Backend stream connected run_id=${backendRunId}`);
+      }
 
-      let evalResult: Record<string, unknown>;
+      const reader = res.body?.getReader();
+      if (!reader) throw new Error("Streaming response not available in this environment");
+      const decoder = new TextDecoder();
+      let buf = "";
+      let gotFinal = false;
 
-      if (shouldRunEvaluator) {
-        // PHASE 2: Devil's Advocate evaluator
-        console.log(
-          "[Atlas AI] Phase 2: Critical Review",
-          altConfig ? `→ ${altConfig.provider}/${altConfig.model}` : "→ Anthropic",
-        );
-        safe({ type: "SET_PHASE", value: "evaluating" });
-
-        // Item 3: semantic distillation via Haiku instead of mechanical string truncation
-        const distilled = await distillAgents(prelimBrief as Record<string, unknown>, apiKey);
-        const evalInput = `Review this preliminary tech decision brief and find weaknesses:\n\n${JSON.stringify(
-          distilled,
-        )}`;
-        console.log(`[Atlas AI] Evaluator input: ~${estimateTokens(evalInput)} tokens`);
-
-        if (altConfig) {
-          safe({ type: "UPDATE_AGENT", agent: "evaluator", status: "searching" });
-          try {
-            const endpoint = getAltEndpoint(altConfig.provider) ?? "";
-            const raw = await callOpenAICompat(EVALUATOR_PROMPT, evalInput, {
-              endpoint,
-              model: altConfig.model,
-              apiKey: altConfig.apiKey,
-              maxTokens: 900,
-            });
-            evalResult = JSON.parse(raw.replace(/```json|```/g, "").trim()) as Record<string, unknown>;
-            safe({ type: "UPDATE_AGENT", agent: "evaluator", status: "done" });
-          } catch (e) {
-            const err = e as Error;
-            console.warn("[Atlas AI] Alt evaluator failed, falling back to Anthropic:", err?.message);
-            safe({ type: "UPDATE_AGENT", agent: "evaluator", status: "error" });
-            evalResult = await callAgent(
-              EVALUATOR_PROMPT,
-              evalInput,
-              safe,
-              "evaluator",
-              apiKey,
-              "claude-sonnet-4-6",
-            );
-          }
-        } else {
-          evalResult = await callAgent(
-            EVALUATOR_PROMPT,
-            evalInput,
-            safe,
-            "evaluator",
-            apiKey,
-            "claude-sonnet-4-6",
+      const handleEvent = (ev: Record<string, unknown>) => {
+        const t = String(ev.type || "");
+        if (t === "phase") {
+          if (ev.run_id) console.log(`[Atlas AI] Stream event run_id=${String(ev.run_id)} phase=${String(ev.phase || "")}`);
+          const phase = String(ev.phase || "") as AppPhase;
+          if (phase) safe({ type: "SET_PHASE", value: phase });
+          return;
+        }
+        if (t === "agent") {
+          const agent = String(ev.agent || "") as AgentKey;
+          const status = String(ev.status || "") as AgentStatus;
+          if (agent && status) safe({ type: "UPDATE_AGENT", agent, status });
+          return;
+        }
+        if (t === "agent_error_detail") {
+          console.error(
+            `[Atlas AI] Agent failure run_id=${String(ev.run_id || "")} agent=${String(ev.agent || "")} provider=${String(ev.provider || "")} model=${String(ev.model || "")} error=${String(ev.error || "")} detail=${String(ev.detail || "")}`,
           );
+          return;
         }
-        if (evalResult?.error) {
-          throw new Error(`Critical Review failed: ${String(evalResult.error)}`);
+        if (t === "eval_critiques") {
+          const critiques = ev.critiques as [string, string][] | undefined;
+          safe({ type: "SET_EVAL_CRITIQUES", value: critiques ?? null });
+          return;
         }
-        console.log("[Atlas AI] Phase 2: done");
-      } else {
-        console.log(
-          "[Atlas AI] Phase 2: evaluator skipped (no high-risk signals; saving tokens for this run).",
-        );
-        safe({ type: "UPDATE_AGENT", agent: "evaluator", status: "done" });
-        evalResult = {
-          overall_assessment:
-            "Evaluator was skipped for this run to reduce token usage; no explicit high-risk signals were detected.",
-          challenges: [],
-          missing_considerations: [],
-          cost_flags: [],
-          timeline_flags: [],
-          revised_confidence: undefined,
-          revised_verdict: undefined,
-          revision_needed: {},
-        } as Record<string, unknown>;
-      }
+        if (t === "search") {
+          const agent = String(ev.agent || "agent");
+          const query = String(ev.query || "");
+          const tsRaw = ev.ts;
+          const ts = typeof tsRaw === "string" ? Date.parse(tsRaw) : Date.now();
+          if (query) safe({ type: "ADD_SEARCH", value: { agent, query, ts: Number.isFinite(ts) ? ts : Date.now() } });
+          return;
+        }
+        if (t === "search_results") {
+          console.info(
+            `[Atlas AI] Grounded search run_id=${String(ev.run_id || "")} agent=${String(ev.agent || "")} provider=${String(ev.provider || "")} count=${String(ev.count || 0)}`,
+            ev.results,
+          );
+          return;
+        }
+        if (t === "final") {
+          const brief = ev.brief as Brief | undefined;
+          if (!brief) throw new Error("Missing final brief");
+          const finalBrief = { ...brief, _timestamp: new Date().toISOString(), _run_id: String(ev.run_id || latestRunId || "") } as Brief;
+          safe({ type: "SET_BRIEF", value: finalBrief });
+          safe({ type: "ADD_HISTORY", value: finalBrief });
+          safe({ type: "SET_PHASE", value: "done" });
+          setTimeout(() => resultRef.current?.scrollIntoView({ behavior: "smooth" }), 200);
+          console.log("[Atlas AI] Analysis complete");
+          gotFinal = true;
+          return;
+        }
+        if (t === "error") {
+          const detail = String(ev.detail || "Analysis failed");
+          throw new Error(detail);
+        }
+      };
 
-      // PHASE 2.5: Optimizer — re-run flagged agents; surface critiques in UI
-      const revisionNeeded = (evalResult?.revision_needed as Record<string, string | null> | undefined) || {};
-      const toRevise = Object.entries(revisionNeeded).filter(([, reason]) => reason) as [string, string][];
-      if (toRevise.length > 0) {
-        console.log(`[Atlas AI] Phase 2.5: Optimizer — revising ${toRevise.length} agent(s):`, toRevise.map(([k]) => k).join(", "));
-        safe({ type: "SET_PHASE", value: "revising" });
-        safe({ type: "SET_EVAL_CRITIQUES", value: toRevise });
-        for (const [agentKey, critique] of toRevise) {
-          const prompt = AGENT_PROMPTS[agentKey];
-          if (!prompt) continue;
-          const revisedMsg = `${userMsg}\n\nCRITICAL FEEDBACK FROM REVIEWER — you MUST address this in your revised analysis:\n${critique}`;
-          const revisedResult = await callAgent(prompt, revisedMsg, safe, agentKey, apiKey);
-          if (!revisedResult?.error) {
-            prelimBrief = { ...prelimBrief, [AGENT_BRIEF_KEYS[agentKey]]: revisedResult };
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buf += decoder.decode(value, { stream: true });
+        while (true) {
+          const idx = buf.indexOf("\n");
+          if (idx < 0) break;
+          const line = buf.slice(0, idx).trim();
+          buf = buf.slice(idx + 1);
+          if (!line) continue;
+          let ev: Record<string, unknown>;
+          try {
+            ev = JSON.parse(line) as Record<string, unknown>;
+          } catch (err) {
+            // ignore malformed lines but keep the stream running
+            console.warn("[Atlas AI] Bad stream line:", line, err);
+            continue;
           }
+          handleEvent(ev);
         }
-        console.log("[Atlas AI] Phase 2.5: done");
       }
-
-      // PHASE 3: Synthesis — slim all results before sending to Sonnet
-      console.log("[Atlas AI] Phase 3: synthesis", altConfig ? `→ ${altConfig.provider}/${altConfig.model}` : "→ Anthropic");
-      safe({ type: "SET_PHASE", value: "synthesizing" });
-      const allResults = slimPayload({ ...prelimBrief, devils_advocate: evalResult }) as Record<string, unknown>;
-      console.log(`[Atlas AI] Synthesis payload: ~${estimateTokens(JSON.stringify(allResults))} tokens`);
-      const finalBrief = await callSynthesis(SYNTHESIS_PROMPT, allResults, safe, apiKey, altConfig);
-      console.log("[Atlas AI] Phase 3: done");
-
-      finalBrief._timestamp = new Date().toISOString();
-      finalBrief.devils_advocate = evalResult;
-
-      safe({ type: "SET_BRIEF", value: finalBrief as Brief });
-      safe({ type: "ADD_HISTORY", value: finalBrief as Brief });
-      setTimeout(() => resultRef.current?.scrollIntoView({ behavior: "smooth" }), 200);
-      console.log("[Atlas AI] Analysis complete");
+      if (!gotFinal) throw new Error("Stream ended before final brief was produced");
     } catch (e) {
       const err = e as Error;
+      if (err?.name === "AbortError") return;
       console.error("[Atlas AI] Analysis failed:", err?.message ?? e, err?.stack ?? "");
       safe({ type: "SET_ERROR", value: `Analysis failed: ${err?.message ?? String(e)}. Please try again.` });
     }
-  }, [getMainInput, buildUserMessage, altConfig, state.history, state.context]);
+  }, [getMainInput, buildUserMessage, state.history, state.context, previewPolicy]);
 
   const handleScenarioReanalyze = useCallback(() => {
     // Do NOT pass buildUserMessage() as text — that would write the expanded
@@ -317,8 +316,12 @@ export function useAppLogic() {
     altConfig,
     showMoreExamples,
     setShowMoreExamples,
+    policyPreview,
+    policyPreviewLoading,
+    latestRunId,
     resultRef,
     getMainInput,
+    previewPolicy,
     analyze,
     handleScenarioReanalyze,
     handleLoadHistory,

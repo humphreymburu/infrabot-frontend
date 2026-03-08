@@ -1,6 +1,6 @@
 import { T, S } from "./lib/theme";
 import { PROVIDERS, getEnvKeyForProvider } from "./api/config";
-import { SCENARIOS } from "./lib/constants";
+import { SCENARIOS, type Scenario } from "./lib/constants.ts";
 import { useAppLogic } from "./hooks/useAppLogic";
 import { IntakeForm } from "./components/IntakeForm";
 import { AgentProgress } from "./components/AgentProgress";
@@ -10,6 +10,14 @@ import { DevilsView } from "./components/DevilsView";
 import { SourcesView } from "./components/SourcesView";
 import { HistoryView } from "./components/HistoryView";
 import { DiffView } from "./components/DiffView";
+import { RunMetadataView } from "./components/RunMetadataView";
+import { TraceReplayView } from "./components/TraceReplayView";
+import { TraceDiffView } from "./components/TraceDiffView";
+import { ReviewQueueView } from "./components/ReviewQueueView";
+import { EvidenceInspectorView } from "./components/EvidenceInspectorView";
+import { LineageExplorerView } from "./components/LineageExplorerView";
+import { TelemetryDashboardView } from "./components/TelemetryDashboardView";
+import { PolicySimulatorView } from "./components/PolicySimulatorView";
 import { Tab } from "./components/ui/Badge";
 import type { Brief } from "./types";
 
@@ -17,8 +25,8 @@ export default function App() {
   const {
     state, dispatch,
     apiKey, altProvider, setAltProvider, setAltModel, altApiKey, setAltApiKey,
-    effectiveAltModel, showMoreExamples, setShowMoreExamples,
-    resultRef, getMainInput, analyze, handleScenarioReanalyze, handleLoadHistory,
+    effectiveAltModel, showMoreExamples, setShowMoreExamples, policyPreview, policyPreviewLoading, latestRunId,
+    resultRef, getMainInput, previewPolicy, analyze, handleScenarioReanalyze, handleLoadHistory,
   } = useAppLogic();
 
   const handleCompare = (h: Brief) => {
@@ -120,6 +128,55 @@ export default function App() {
             <IntakeForm state={state} dispatch={dispatch} />
             {(state.phase === "idle" || isAnalyzing) && (
               <div style={{ position: "sticky", bottom: 0, paddingTop: S.m, background: `linear-gradient(to top, ${T.bg} 80%, transparent)` }}>
+                {!policyPreview && state.phase === "idle" && !!getMainInput().trim() && (
+                  <div style={{ marginBottom: 10, display: "flex", justifyContent: "flex-end" }}>
+                    <button
+                      type="button"
+                      disabled={policyPreviewLoading}
+                      onClick={() => previewPolicy()}
+                      style={{
+                        fontSize: 11,
+                        border: `1px solid ${T.b}`,
+                        background: T.s,
+                        color: T.m,
+                        borderRadius: 999,
+                        padding: "4px 10px",
+                        cursor: policyPreviewLoading ? "not-allowed" : "pointer",
+                      }}
+                    >
+                      {policyPreviewLoading ? "Previewing..." : "Preview policy"}
+                    </button>
+                  </div>
+                )}
+                {policyPreview && (
+                  <div style={{ marginBottom: 10, border: `1px solid ${T.b}`, background: T.s, borderRadius: 10, padding: "10px 12px" }}>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
+                      <span style={{ fontSize: 11, color: T.d, textTransform: "uppercase", letterSpacing: "0.08em" }}>Selected policy</span>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        <span style={{ fontSize: 12, color: T.t, fontWeight: 600 }}>
+                          {policyPreview.tier} • {policyPreview.path}
+                        </span>
+                        <button
+                          type="button"
+                          disabled={policyPreviewLoading || state.phase !== "idle"}
+                          onClick={() => previewPolicy()}
+                          style={{
+                            fontSize: 11,
+                            border: `1px solid ${T.b}`,
+                            background: T.bg,
+                            color: T.m,
+                            borderRadius: 999,
+                            padding: "3px 8px",
+                            cursor: policyPreviewLoading || state.phase !== "idle" ? "not-allowed" : "pointer",
+                          }}
+                        >
+                          {policyPreviewLoading ? "Refreshing..." : "Refresh policy"}
+                        </button>
+                      </div>
+                    </div>
+                    <div style={{ fontSize: 12, color: T.m, marginTop: 4 }}>{policyPreview.selection_reason}</div>
+                  </div>
+                )}
                 <button
                   type="button"
                   onClick={() => state.phase === "idle" && getMainInput().trim() && analyze()}
@@ -149,7 +206,7 @@ export default function App() {
               <div style={{ fontSize: 11, fontFamily: T.sn, color: T.m, fontWeight: 600, letterSpacing: "0.04em", textTransform: "uppercase", marginBottom: S.s }}>Example Decisions</div>
               <div style={{ fontSize: 12, color: T.m, margin: "0 0 10px", fontFamily: T.sn }}>Not sure where to start? Try one of these.</div>
               <div style={{ display: "grid", gap: S.s }}>
-                {(showMoreExamples ? SCENARIOS : SCENARIOS.slice(0, 2)).map((ex, i) => (
+                {(showMoreExamples ? SCENARIOS : SCENARIOS.slice(0, 2)).map((ex: Scenario, i: number) => (
                   <button key={i} onClick={() => analyze(ex.text)}
                     style={{ display: "block", background: T.s, border: `1px solid ${T.b}`, borderRadius: 12, padding: `${S.m}px ${S.l}px`, cursor: "pointer", textAlign: "left", width: "100%", boxShadow: "0 2px 6px rgba(15,23,42,0.04)" }}
                     onMouseEnter={(e) => { e.currentTarget.style.borderColor = T.a; e.currentTarget.style.background = T.r; }}
@@ -223,8 +280,16 @@ export default function App() {
               <Tab active={state.activeTab === "brief"} label="Decision Brief" onClick={() => dispatch({ type: "SET_TAB", value: "brief" })} />
               <Tab active={state.activeTab === "devils"} label="Critical Review" onClick={() => dispatch({ type: "SET_TAB", value: "devils" })} />
               <Tab active={state.activeTab === "sources"} label="Sources" onClick={() => dispatch({ type: "SET_TAB", value: "sources" })} count={state.searchLog.length} />
+              <Tab active={state.activeTab === "metadata"} label="Run Metadata" onClick={() => dispatch({ type: "SET_TAB", value: "metadata" })} />
+              <Tab active={state.activeTab === "evidence"} label="Evidence Inspector" onClick={() => dispatch({ type: "SET_TAB", value: "evidence" })} />
               <Tab active={state.activeTab === "scenarios"} label="Scenarios" onClick={() => dispatch({ type: "SET_TAB", value: "scenarios" })} />
               <Tab active={state.activeTab === "history"} label="History" onClick={() => dispatch({ type: "SET_TAB", value: "history" })} count={state.history.length} />
+              <Tab active={state.activeTab === "replay"} label="Trace Replay" onClick={() => dispatch({ type: "SET_TAB", value: "replay" })} />
+              <Tab active={state.activeTab === "rundiff"} label="Run Diff" onClick={() => dispatch({ type: "SET_TAB", value: "rundiff" })} />
+              <Tab active={state.activeTab === "reviews"} label="Review Queue" onClick={() => dispatch({ type: "SET_TAB", value: "reviews" })} />
+              <Tab active={state.activeTab === "lineage"} label="Lineage Explorer" onClick={() => dispatch({ type: "SET_TAB", value: "lineage" })} />
+              <Tab active={state.activeTab === "telemetry"} label="Telemetry" onClick={() => dispatch({ type: "SET_TAB", value: "telemetry" })} />
+              <Tab active={state.activeTab === "simulator"} label="Policy Simulator" onClick={() => dispatch({ type: "SET_TAB", value: "simulator" })} />
               {(state.compareWith || state.history.length >= 2) && (
                 <Tab active={state.activeTab === "changes"} label="What Changed" onClick={() => dispatch({ type: "SET_TAB", value: "changes" })} />
               )}
@@ -235,8 +300,16 @@ export default function App() {
             {state.activeTab === "brief" && <BriefView d={state.brief} />}
             {state.activeTab === "devils" && <DevilsView d={state.brief} />}
             {state.activeTab === "sources" && <SourcesView d={state.brief} searchLog={state.searchLog} />}
+            {state.activeTab === "metadata" && <RunMetadataView d={state.brief} />}
+            {state.activeTab === "evidence" && <EvidenceInspectorView d={state.brief} />}
             {state.activeTab === "scenarios" && <ScenarioPanel state={state} dispatch={dispatch} onReanalyze={handleScenarioReanalyze} />}
             {state.activeTab === "history" && <HistoryView history={state.history} onLoad={handleLoadHistory} onCompare={handleCompare} currentBrief={state.brief} />}
+            {state.activeTab === "replay" && <TraceReplayView initialRunId={latestRunId} />}
+            {state.activeTab === "rundiff" && <TraceDiffView defaultA={latestRunId} />}
+            {state.activeTab === "reviews" && <ReviewQueueView />}
+            {state.activeTab === "lineage" && <LineageExplorerView initialRunId={latestRunId} />}
+            {state.activeTab === "telemetry" && <TelemetryDashboardView />}
+            {state.activeTab === "simulator" && <PolicySimulatorView />}
             {state.activeTab === "changes" && <DiffView current={state.history[0] ?? state.brief} previous={state.compareWith ?? state.history[1]} />}
           </div>
         )}
@@ -244,4 +317,3 @@ export default function App() {
     </div>
   );
 }
-

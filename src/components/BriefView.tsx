@@ -5,8 +5,24 @@ import type { Brief } from "../types";
 
 export function BriefView({ d }: { d: Brief | null }) {
   if (!d) return null;
+  const tc = d.meta?.trust_contract;
   return (
     <div style={{ animation: "briefIn 0.5s ease" }}>
+      {(tc?.degraded_result || tc?.human_review_required_for_high_risk_adoption) && (
+        <div style={{ background: T.rD, border: `1px solid ${T.rd}`, borderRadius: 10, padding: "10px 12px", marginBottom: S.m }}>
+          <div style={{ fontSize: 10, color: T.rd, fontFamily: T.mn, fontWeight: 700, marginBottom: 4 }}>TRUST BOUNDARY</div>
+          {tc?.degraded_result && (
+            <div style={{ fontSize: 12, color: T.t, lineHeight: 1.5 }}>
+              Degraded output is advisory only and must not be treated as approval.
+            </div>
+          )}
+          {tc?.human_review_required_for_high_risk_adoption && (
+            <div style={{ fontSize: 12, color: T.t, lineHeight: 1.5 }}>
+              Human review is required before high-risk operational adoption.
+            </div>
+          )}
+        </div>
+      )}
       {/* Header */}
       <div style={{ background: `linear-gradient(135deg, ${T.s}, #E5E7EB)`, border: `1px solid ${T.aB}`, borderRadius: 16, padding: S.l, marginBottom: S.m, position: "relative", overflow: "hidden", boxShadow: "0 4px 20px rgba(15,23,42,0.06)" }}>
         <div style={{ position: "absolute", top: 0, right: 0, width: 200, height: 200, background: `radial-gradient(circle, ${T.aD}, transparent 70%)`, pointerEvents: "none" }} />
@@ -22,6 +38,75 @@ export function BriefView({ d }: { d: Brief | null }) {
           </div>
         </div>
       </div>
+
+      {d.decision_statement && (
+        <Sec title="Decision Statement" icon="1" defaultOpen>
+          <p style={{ fontSize: 13, color: T.t, lineHeight: 1.7, margin: 0 }}>
+            <strong>Decision to make:</strong> {d.decision_statement}
+          </p>
+        </Sec>
+      )}
+
+      {d.context && (
+        <Sec title="Context" icon="2" defaultOpen>
+          {([
+            ["Current state", d.context.current_state],
+            ["What changed", d.context.what_changed],
+            ["Strategic alignment", d.context.strategic_alignment],
+          ] as [string, string | undefined][]).filter(([, v]) => v).map(([k, v], i) => (
+            <p key={i} style={{ fontSize: 12, color: T.m, margin: "0 0 6px", lineHeight: 1.6 }}>
+              <strong style={{ color: T.t }}>{k}:</strong> {v}
+            </p>
+          ))}
+          {!!d.context.constraints?.length && (
+            <div style={{ marginTop: 8 }}>
+              <div style={{ fontSize: 10, color: T.d, marginBottom: 4 }}>Constraints</div>
+              {d.context.constraints.map((c, i) => (
+                <div key={i} style={{ fontSize: 12, color: T.m, padding: "2px 0" }}>• {c}</div>
+              ))}
+            </div>
+          )}
+        </Sec>
+      )}
+
+      {!!d.decision_criteria?.length && (
+        <Sec title="Decision Criteria" icon="3" defaultOpen>
+          <div style={{ overflowX: "auto" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11 }}>
+              <thead><tr>{["Criteria", "Weight", "Why it matters"].map((h, i) => (
+                <th key={i} style={{ textAlign: "left", padding: "6px 7px", borderBottom: `2px solid ${T.b}`, color: T.d, fontSize: 9, fontFamily: T.mn, fontWeight: 700 }}>{h}</th>
+              ))}</tr></thead>
+              <tbody>{d.decision_criteria.map((c, i) => (
+                <tr key={i} style={{ borderBottom: `1px solid ${T.b}` }}>
+                  <td style={{ padding: 7, color: T.t, fontWeight: 600 }}>{c.criterion}</td>
+                  <td style={{ padding: 7, color: T.a, fontFamily: T.mn }}>{c.weight_pct ? `${c.weight_pct}%` : "—"}</td>
+                  <td style={{ padding: 7, color: T.m }}>{c.why_it_matters}</td>
+                </tr>
+              ))}</tbody>
+            </table>
+          </div>
+        </Sec>
+      )}
+
+      {!!d.options_comparison?.dimensions?.length && (
+        <Sec title="Options Compared" icon="4" defaultOpen>
+          <div style={{ overflowX: "auto" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11 }}>
+              <thead><tr>{["Dimension", d.options_comparison.options?.[0] || "Option A", d.options_comparison.options?.[1] || "Option B", "Assessment"].map((h, i) => (
+                <th key={i} style={{ textAlign: "left", padding: "6px 7px", borderBottom: `2px solid ${T.b}`, color: T.d, fontSize: 9, fontFamily: T.mn, fontWeight: 700 }}>{h}</th>
+              ))}</tr></thead>
+              <tbody>{d.options_comparison.dimensions.map((dim, i) => (
+                <tr key={i} style={{ borderBottom: `1px solid ${T.b}` }}>
+                  <td style={{ padding: 7, color: T.t, fontWeight: 600 }}>{dim.dimension}</td>
+                  <td style={{ padding: 7, color: T.m }}>{dim.option_a}</td>
+                  <td style={{ padding: 7, color: T.m }}>{dim.option_b}</td>
+                  <td style={{ padding: 7, color: T.d }}>{dim.assessment}</td>
+                </tr>
+              ))}</tbody>
+            </table>
+          </div>
+        </Sec>
+      )}
 
       {/* Cost */}
       {d.cost_analysis && (
@@ -79,6 +164,32 @@ export function BriefView({ d }: { d: Brief | null }) {
               </div>
             )}
           </div>
+        </Sec>
+      )}
+
+      {d.financial_assumptions && (
+        <Sec title="Financial Assumptions" icon="5" defaultOpen>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 8 }}>
+            <KV label="Monthly baseline" value={d.financial_assumptions.monthly_baseline} mono />
+            <KV label="Migration cost" value={d.financial_assumptions.migration_cost} mono />
+            <KV label="3-year TCO" value={d.financial_assumptions.tco_3y} mono />
+          </div>
+          {([
+            ["Traffic assumption", d.financial_assumptions.traffic_assumption],
+            ["Storage assumption", d.financial_assumptions.storage_assumption],
+            ["Growth assumption", d.financial_assumptions.growth_assumption],
+          ] as [string, string | undefined][]).filter(([, v]) => v).map(([k, v], i) => (
+            <p key={i} style={{ fontSize: 12, color: T.m, margin: "8px 0 0", lineHeight: 1.6 }}>
+              <strong style={{ color: T.t }}>{k}:</strong> {v}
+            </p>
+          ))}
+          {!!d.financial_assumptions.assumptions?.length && (
+            <div style={{ marginTop: 8 }}>
+              {d.financial_assumptions.assumptions.map((a, i) => (
+                <div key={i} style={{ fontSize: 12, color: T.m, padding: "2px 0" }}>• {a}</div>
+              ))}
+            </div>
+          )}
         </Sec>
       )}
 
@@ -291,6 +402,25 @@ export function BriefView({ d }: { d: Brief | null }) {
             </div>
           </div>
         </div>
+      )}
+
+      {d.decision_boundary && (
+        <Sec title="Decision Boundary" icon="7" defaultOpen>
+          {([
+            ["Recommend Option A if", d.decision_boundary.recommend_option_a_if],
+            ["Recommend Option B if", d.decision_boundary.recommend_option_b_if],
+            ["What flips decision", d.decision_boundary.what_flips_decision],
+          ] as [string, string[] | undefined][]).map(([title, items], i) => (
+            <div key={i} style={{ marginBottom: 10 }}>
+              <div style={{ fontSize: 11, color: T.d, marginBottom: 4 }}>{title}</div>
+              {(items || []).length ? (
+                (items || []).map((it, j) => <div key={j} style={{ fontSize: 12, color: T.m, padding: "2px 0" }}>• {it}</div>)
+              ) : (
+                <div style={{ fontSize: 12, color: T.d }}>—</div>
+              )}
+            </div>
+          ))}
+        </Sec>
       )}
     </div>
   );

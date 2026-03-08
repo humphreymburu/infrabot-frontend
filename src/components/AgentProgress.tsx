@@ -12,7 +12,7 @@ const AGENTS = [
 ];
 
 const STATUS_COLOR: Record<string, string> = { pending: T.d, searching: T.y, analyzing: T.o, working: T.y, done: T.g, error: T.rd };
-const STATUS_LABEL: Record<string, string> = { pending: "Waiting", searching: "Searching web...", analyzing: "Analyzing...", working: "Synthesizing...", done: "Complete", error: "Failed" };
+const STATUS_LABEL: Record<string, string> = { pending: "Waiting", searching: "Searching", analyzing: "Processing", working: "Processing", done: "Completed", error: "Failed" };
 
 interface AgentProgressProps {
   progress: AgentProgressMap;
@@ -20,9 +20,26 @@ interface AgentProgressProps {
 }
 
 export function AgentProgress({ progress, searchLog }: AgentProgressProps) {
+  const active = AGENTS.filter(({ key }) => ["searching", "analyzing", "working"].includes(progress[key as keyof AgentProgressMap]));
+  const completed = AGENTS.filter(({ key }) => progress[key as keyof AgentProgressMap] === "done").length;
   return (
     <div style={{ background: T.s, border: `1px solid ${T.b}`, borderRadius: 12, padding: 18, marginBottom: 14 }}>
-      <div style={{ fontSize: 10, fontFamily: T.mn, color: T.a, fontWeight: 700, letterSpacing: "0.12em", marginBottom: 14 }}>MULTI-AGENT PIPELINE</div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10, marginBottom: 10 }}>
+        <div style={{ fontSize: 10, fontFamily: T.mn, color: T.a, fontWeight: 700, letterSpacing: "0.12em" }}>MULTI-AGENT PIPELINE</div>
+        <div style={{ fontSize: 10, fontFamily: T.mn, color: T.m, fontWeight: 700, letterSpacing: "0.08em" }}>{completed}/{AGENTS.length} completed</div>
+      </div>
+
+      {active.length > 0 ? (
+        <div style={{ fontSize: 11, color: T.t, marginBottom: 12, display: "flex", alignItems: "center", gap: 8 }}>
+          <span style={{ width: 8, height: 8, borderRadius: "50%", background: T.a, animation: "pulse 1s infinite" }} />
+          <span style={{ fontWeight: 600 }}>Active:</span>
+          <span style={{ color: T.m }}>
+            {active.map((a) => a.label).join(active.length > 2 ? ", " : " & ")}
+          </span>
+        </div>
+      ) : (
+        <div style={{ fontSize: 11, color: T.m, marginBottom: 12 }}>No agents currently running.</div>
+      )}
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 8, marginBottom: 16 }}>
         {AGENTS.map(({ key, label, icon }) => (
