@@ -8,7 +8,7 @@ export type AppPhase =
   | "done"
   | "error";
 
-export type AgentKey = "cost" | "arch" | "ops" | "strategy" | "evaluator" | "synthesis";
+export type AgentKey = "planner" | "compress" | "cost" | "arch" | "ops" | "strategy" | "evaluator" | "synthesis";
 export type AgentStatus = "pending" | "searching" | "analyzing" | "working" | "done" | "error";
 export type AgentProgressMap = Record<AgentKey, AgentStatus>;
 
@@ -144,9 +144,50 @@ export interface Brief {
       governance_pass?: boolean;
       confidence_score?: number;
     };
+    brief_quality?: {
+      required_sections?: string[];
+      missing_sections?: string[];
+      present_sections?: string[];
+      gaps?: string[];
+      completeness_score?: number;
+      recommendation_gate_pass?: boolean;
+      recommendation_gate_reason?: string;
+    };
+  };
+  quality_gaps?: string[];
+  quality_contract?: {
+    required_sections?: string[];
+    missing_sections?: string[];
+    present_sections?: string[];
+    gaps?: string[];
+    completeness_score?: number;
+    recommendation_gate_pass?: boolean;
+    recommendation_gate_reason?: string;
   };
   cost_analysis?: {
     narrative?: string;
+    current_cost_breakdown?: {
+      monthly_baseline?: string | number;
+      components?: Record<string, string | number>;
+      data_source?: string;
+    };
+    proposed_cost_breakdown?: {
+      monthly_baseline?: string | number;
+      components?: Record<string, string | number>;
+      data_source?: string;
+    };
+    migration_cost?: {
+      engineering_hours?: string | number;
+      hourly_rate?: string | number;
+      dual_running_days?: string | number;
+      total?: string | number;
+    };
+    "3_year_tco"?: {
+      aws?: string | number;
+      azure?: string | number;
+      savings?: string | number;
+    };
+    break_even_month?: string | number;
     current_state_monthly?: string;
     proposed_monthly?: string;
     year_1_total?: string;

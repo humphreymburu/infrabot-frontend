@@ -173,7 +173,8 @@ export function useAppLogic() {
       : null;
 
     try {
-      await previewPolicy(userMsg);
+      // Keep policy preview asynchronous so analysis start is not blocked by preview latency.
+      void previewPolicy(userMsg);
 
       const res = await fetch("/api/analyze/stream", {
         method: "POST",
@@ -239,6 +240,38 @@ export function useAppLogic() {
           console.info(
             `[Atlas AI] Grounded search run_id=${String(ev.run_id || "")} agent=${String(ev.agent || "")} provider=${String(ev.provider || "")} count=${String(ev.count || 0)}`,
             ev.results,
+          );
+          return;
+        }
+        if (t === "policy_selected") {
+          console.info(
+            `[Atlas AI] Policy selected run_id=${String(ev.run_id || "")} tier=${String(ev.tier || "")} path=${String(ev.path || "")} mode=${String(ev.mode || "")}`,
+          );
+          return;
+        }
+        if (t === "review_required") {
+          console.warn(
+            `[Atlas AI] Review required run_id=${String(ev.run_id || "")} review_id=${String(ev.review_id || "")} stage=${String(ev.stage || "")} reason=${String(ev.reason || "")}`,
+          );
+          return;
+        }
+        if (t === "review_decision") {
+          console.info(
+            `[Atlas AI] Review decision run_id=${String(ev.run_id || "")} review_id=${String(ev.review_id || "")} stage=${String(ev.stage || "")} action=${String(ev.action || "")}`,
+          );
+          return;
+        }
+        if (t === "quality_gate") {
+          console.warn(
+            `[Atlas AI] Quality gate run_id=${String(ev.run_id || "")} stage=${String(ev.stage || "")} cycle=${String(ev.cycle || "")}`,
+            ev.gaps,
+          );
+          return;
+        }
+        if (t === "guarantee_violation") {
+          console.warn(
+            `[Atlas AI] Guarantee violation run_id=${String(ev.run_id || "")}`,
+            ev.violations,
           );
           return;
         }

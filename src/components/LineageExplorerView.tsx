@@ -2,6 +2,7 @@ import { useState } from "react";
 import { T, S } from "../lib/theme";
 
 type LineageItem = Record<string, unknown>;
+const tenantId = import.meta.env.VITE_TENANT_ID || "local-dev";
 
 export function LineageExplorerView({ initialRunId }: { initialRunId?: string }) {
   const [runId, setRunId] = useState(initialRunId || "");
@@ -16,8 +17,8 @@ export function LineageExplorerView({ initialRunId }: { initialRunId?: string })
     setError("");
     try {
       const [a, b] = await Promise.all([
-        fetch(`/api/lineage/${encodeURIComponent(runId.trim())}`),
-        fetch(`/api/lineage/${encodeURIComponent(runId.trim())}/ancestry?depth=20`),
+        fetch(`/api/lineage/${encodeURIComponent(runId.trim())}`, { headers: { "x-tenant-id": tenantId } }),
+        fetch(`/api/lineage/${encodeURIComponent(runId.trim())}/ancestry?depth=20`, { headers: { "x-tenant-id": tenantId } }),
       ]);
       if (!a.ok || !b.ok) throw new Error("Lineage not found");
       const d1 = (await a.json()) as LineageItem;

@@ -9,11 +9,29 @@ interface SourcesViewProps {
 }
 
 export function SourcesView({ d, searchLog }: SourcesViewProps) {
+  const directSources = d?.research_sources || [];
+  const graphRows = d?.evidence_governance?.claim_citation_graph || [];
+  const derivedSources = Array.from(
+    new Map(
+      graphRows
+        .filter((r) => !!r?.source_url)
+        .map((r) => [
+          String(r.source_url),
+          {
+            title: r.brief_section || "Mapped evidence source",
+            url: r.source_url,
+            key_data: r.source_span || r.claim_text || "",
+          },
+        ]),
+    ).values(),
+  );
+  const sourcesToShow = directSources.length > 0 ? directSources : derivedSources;
+
   return (
     <div style={{ animation: "briefIn 0.5s ease" }}>
-      {d?.research_sources && d.research_sources.length > 0 && (
-        <Sec title={`Verified Sources (${d.research_sources.length})`} icon="🔍">
-          {d.research_sources.map((src, i) => {
+      {sourcesToShow.length > 0 && (
+        <Sec title={`Verified Sources (${sourcesToShow.length})`} icon="🔍">
+          {sourcesToShow.map((src, i) => {
             const s = (src || {}) as Record<string, unknown>;
             const url = String(s.url || s.source_url || s.source || s.link || "").trim();
             const title = String(s.title || s.name || s.source_name || url || "Untitled source").trim();
@@ -28,6 +46,13 @@ export function SourcesView({ d, searchLog }: SourcesViewProps) {
               </div>
             );
           })}
+        </Sec>
+      )}
+      {sourcesToShow.length === 0 && (
+        <Sec title="Verified Sources (0)" icon="🔍">
+          <div style={{ fontSize: 12, color: T.m }}>
+            No sources were attached to this run output. Try enabling web search or rerun with higher assurance tier.
+          </div>
         </Sec>
       )}
       <Sec title={`Search Log (${searchLog.length} queries)`} icon="→">

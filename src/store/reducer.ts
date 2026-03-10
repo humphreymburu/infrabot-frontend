@@ -19,6 +19,8 @@ export const initialState: AppState = {
   history: [],
   searchLog: [],
   agentProgress: {
+    planner: "pending",
+    compress: "pending",
     cost: "pending",
     arch: "pending",
     ops: "pending",
@@ -49,6 +51,8 @@ export function reducer(state: AppState, action: Action): AppState {
       ...state,
       evalCritiques: null,
       agentProgress: {
+        planner: "pending",
+        compress: "pending",
         cost: "pending", arch: "pending", ops: "pending",
         strategy: "pending", evaluator: "pending", synthesis: "pending",
       },

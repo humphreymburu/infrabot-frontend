@@ -9,6 +9,7 @@ type Comparability = {
   migration_notes?: string[];
   variance_tolerance?: Record<string, unknown>;
 };
+const tenantId = import.meta.env.VITE_TENANT_ID || "local-dev";
 
 export function TraceDiffView({ defaultA }: { defaultA?: string }) {
   const [runA, setRunA] = useState(defaultA || "");
@@ -24,7 +25,9 @@ export function TraceDiffView({ defaultA }: { defaultA?: string }) {
     setLoading(true);
     setError("");
     try {
-      const res = await fetch(`/api/traces/compare?run_a=${encodeURIComponent(runA.trim())}&run_b=${encodeURIComponent(runB.trim())}`);
+      const res = await fetch(`/api/traces/compare?run_a=${encodeURIComponent(runA.trim())}&run_b=${encodeURIComponent(runB.trim())}`, {
+        headers: { "x-tenant-id": tenantId },
+      });
       if (!res.ok) throw new Error("Trace compare failed");
       const data = (await res.json()) as { diffs?: DiffMap; focus_deltas?: FocusDeltas; comparability?: Comparability };
       setDiffs(data.diffs || {});

@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { T, S } from "../lib/theme";
 
+const tenantId = import.meta.env.VITE_TENANT_ID || "local-dev";
+
 type ReviewItem = {
   review_id: string;
   run_id: string;
@@ -20,7 +22,9 @@ export function ReviewQueueView() {
     setLoading(true);
     setError("");
     try {
-      const res = await fetch("/api/reviews/pending?limit=100");
+      const res = await fetch("/api/reviews/pending?limit=100", {
+        headers: { "x-tenant-id": tenantId },
+      });
       if (!res.ok) throw new Error("Failed to load review queue");
       const data = (await res.json()) as { items?: ReviewItem[] };
       setItems(data.items || []);
@@ -35,7 +39,7 @@ export function ReviewQueueView() {
     try {
       const res = await fetch(`/api/reviews/${encodeURIComponent(reviewId)}/decision`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", "x-tenant-id": tenantId },
         body: JSON.stringify({ action, reviewer }),
       });
       if (!res.ok) throw new Error("Decision submit failed");

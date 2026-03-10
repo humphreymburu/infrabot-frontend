@@ -2,6 +2,7 @@ import { useState } from "react";
 import { T, S } from "../lib/theme";
 
 type SimResult = Record<string, unknown>;
+const tenantId = import.meta.env.VITE_TENANT_ID || "local-dev";
 
 export function PolicySimulatorView() {
   const [msg, setMsg] = useState("");
@@ -18,7 +19,7 @@ export function PolicySimulatorView() {
     try {
       const res = await fetch("/api/policy/simulate", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", "x-tenant-id": tenantId },
         body: JSON.stringify({
           user_message: msg,
           force_tier: tier || undefined,

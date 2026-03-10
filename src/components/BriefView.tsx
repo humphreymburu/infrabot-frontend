@@ -6,9 +6,12 @@ import type { Brief } from "../types";
 export function BriefView({ d }: { d: Brief | null }) {
   if (!d) return null;
   const tc = d.meta?.trust_contract;
+  const quality = d.quality_contract || d.meta?.brief_quality;
+  const missingSections = quality?.missing_sections || [];
+  const showTrustBoundary = String(import.meta.env.VITE_SHOW_TRUST_BOUNDARY || "").toLowerCase() === "true";
   return (
     <div style={{ animation: "briefIn 0.5s ease" }}>
-      {(tc?.degraded_result || tc?.human_review_required_for_high_risk_adoption) && (
+      {showTrustBoundary && (tc?.degraded_result || tc?.human_review_required_for_high_risk_adoption) && (
         <div style={{ background: T.rD, border: `1px solid ${T.rd}`, borderRadius: 10, padding: "10px 12px", marginBottom: S.m }}>
           <div style={{ fontSize: 10, color: T.rd, fontFamily: T.mn, fontWeight: 700, marginBottom: 4 }}>TRUST BOUNDARY</div>
           {tc?.degraded_result && (
@@ -38,6 +41,30 @@ export function BriefView({ d }: { d: Brief | null }) {
           </div>
         </div>
       </div>
+
+      {quality && (
+        <Sec title="Brief Quality" icon="✓" defaultOpen>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 8, marginBottom: 10 }}>
+            <KV label="Completeness" value={`${quality.completeness_score ?? 0}/10`} mono />
+            <KV label="Required Sections" value={String(quality.required_sections?.length ?? 0)} />
+            <KV label="Missing Sections" value={String(missingSections.length)} color={missingSections.length > 0 ? T.rd : T.g} />
+            <KV label="Recommendation Gate" value={quality.recommendation_gate_pass ? "PASS" : "BLOCKED"} color={quality.recommendation_gate_pass ? T.g : T.rd} />
+          </div>
+          {!quality.recommendation_gate_pass && (
+            <div style={{ fontSize: 12, color: T.rd, marginBottom: 8 }}>
+              Recommendation gate blocked: {quality.recommendation_gate_reason || "missing required decision sections"}.
+            </div>
+          )}
+          {missingSections.length > 0 && (
+            <div>
+              <div style={{ fontSize: 10, color: T.d, marginBottom: 4 }}>Missing sections</div>
+              {missingSections.map((s, i) => (
+                <div key={i} style={{ fontSize: 12, color: T.m, padding: "2px 0" }}>• {s}</div>
+              ))}
+            </div>
+          )}
+        </Sec>
+      )}
 
       {d.decision_statement && (
         <Sec title="Decision Statement" icon="1" defaultOpen>
@@ -120,6 +147,58 @@ export function BriefView({ d }: { d: Brief | null }) {
             <KV label="Migration" value={d.cost_analysis.migration_one_time} mono color={T.o} />
             <KV label="ROI" value={d.cost_analysis.roi_timeline} />
           </div>
+          {(d.cost_analysis.current_cost_breakdown || d.cost_analysis.proposed_cost_breakdown) && (
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
+              {d.cost_analysis.current_cost_breakdown && (
+                <div style={{ padding: "10px 12px", border: `1px solid ${T.b}`, borderRadius: 8, background: T.s }}>
+                  <div style={{ fontSize: 10, color: T.d, fontFamily: T.mn, marginBottom: 6 }}>CURRENT COST BREAKDOWN</div>
+                  <KV label="Monthly baseline" value={String(d.cost_analysis.current_cost_breakdown.monthly_baseline || "—")} mono />
+                  {Object.entries(d.cost_analysis.current_cost_breakdown.components || {}).map(([k, v]) => (
+                    <div key={k} style={{ fontSize: 12, color: T.m, padding: "2px 0" }}>
+                      {k}: <span style={{ color: T.t, fontFamily: T.mn }}>{String(v)}</span>
+                    </div>
+                  ))}
+                  {d.cost_analysis.current_cost_breakdown.data_source && (
+                    <div style={{ fontSize: 10, color: T.d, marginTop: 6 }}>Source: {d.cost_analysis.current_cost_breakdown.data_source}</div>
+                  )}
+                </div>
+              )}
+              {d.cost_analysis.proposed_cost_breakdown && (
+                <div style={{ padding: "10px 12px", border: `1px solid ${T.b}`, borderRadius: 8, background: T.s }}>
+                  <div style={{ fontSize: 10, color: T.d, fontFamily: T.mn, marginBottom: 6 }}>PROPOSED COST BREAKDOWN</div>
+                  <KV label="Monthly baseline" value={String(d.cost_analysis.proposed_cost_breakdown.monthly_baseline || "—")} mono />
+                  {Object.entries(d.cost_analysis.proposed_cost_breakdown.components || {}).map(([k, v]) => (
+                    <div key={k} style={{ fontSize: 12, color: T.m, padding: "2px 0" }}>
+                      {k}: <span style={{ color: T.t, fontFamily: T.mn }}>{String(v)}</span>
+                    </div>
+                  ))}
+                  {d.cost_analysis.proposed_cost_breakdown.data_source && (
+                    <div style={{ fontSize: 10, color: T.d, marginTop: 6 }}>Source: {d.cost_analysis.proposed_cost_breakdown.data_source}</div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+          {(d.cost_analysis.migration_cost || d.cost_analysis["3_year_tco"] || d.cost_analysis.break_even_month) && (
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 12 }}>
+              <KV
+                label="Migration Total"
+                value={String(d.cost_analysis.migration_cost?.total || d.cost_analysis.migration_one_time || "—")}
+                mono
+              />
+              <KV
+                label="3Y TCO Savings"
+                value={String(d.cost_analysis["3_year_tco"]?.savings || "—")}
+                mono
+                color={T.g}
+              />
+              <KV
+                label="Break-even Month"
+                value={String(d.cost_analysis.break_even_month || "—")}
+                mono
+              />
+            </div>
+          )}
           {d.cost_analysis.pricing_details && d.cost_analysis.pricing_details.length > 0 && (
             <>
               <div style={{ fontSize: 9, color: T.a, fontWeight: 700, letterSpacing: "0.12em", fontFamily: T.mn, marginBottom: 8 }}>VERIFIED PRICING</div>
@@ -240,12 +319,20 @@ export function BriefView({ d }: { d: Brief | null }) {
       {/* Strategic */}
       {d.strategic_assessment && (
         <Sec title="Strategic Assessment" icon="◆" defaultOpen={false}>
+          {(() => {
+            const baScore = d.strategic_assessment?.business_alignment?.score;
+            const orScore = d.strategic_assessment?.organizational_readiness?.score;
+            const lockIn = d.strategic_assessment?.vendor_lock_in?.risk_level;
+            const ttv = d.strategic_assessment?.time_to_value?.estimate;
+            return (
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 12 }}>
-            <KV label="Business Alignment" value={`${d.strategic_assessment.business_alignment?.score}/10`} />
-            <KV label="Time to Value" value={d.strategic_assessment.time_to_value?.estimate} />
-            <KV label="Org Readiness" value={`${d.strategic_assessment.organizational_readiness?.score}/10`} />
-            <KV label="Vendor Lock-in" value={d.strategic_assessment.vendor_lock_in?.risk_level} color={({ CRITICAL: T.rd, HIGH: T.o, MEDIUM: T.y, LOW: T.g } as Record<string, string>)[d.strategic_assessment.vendor_lock_in?.risk_level ?? ""]} />
+            <KV label="Business Alignment" value={baScore != null ? `${baScore}/10` : "—"} />
+            <KV label="Time to Value" value={ttv || "—"} />
+            <KV label="Org Readiness" value={orScore != null ? `${orScore}/10` : "—"} />
+            <KV label="Vendor Lock-in" value={lockIn || "—"} color={({ CRITICAL: T.rd, HIGH: T.o, MEDIUM: T.y, LOW: T.g } as Record<string, string>)[lockIn ?? ""]} />
           </div>
+            );
+          })()}
           {([
             ["Competitive Impact", d.strategic_assessment.competitive_impact],
             ["Opportunity Cost", d.strategic_assessment.opportunity_cost],

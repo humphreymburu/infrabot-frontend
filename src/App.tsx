@@ -22,9 +22,10 @@ import { Tab } from "./components/ui/Badge";
 import type { Brief } from "./types";
 
 export default function App() {
+  const showAdvancedUi = String(import.meta.env.VITE_ENABLE_ADVANCED_UI || "").toLowerCase() === "true";
   const {
     state, dispatch,
-    apiKey, altProvider, setAltProvider, setAltModel, altApiKey, setAltApiKey,
+    altProvider, setAltProvider, setAltModel, altApiKey, setAltApiKey,
     effectiveAltModel, showMoreExamples, setShowMoreExamples, policyPreview, policyPreviewLoading, latestRunId,
     resultRef, getMainInput, previewPolicy, analyze, handleScenarioReanalyze, handleLoadHistory,
   } = useAppLogic();
@@ -71,44 +72,46 @@ export default function App() {
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 12, fontFamily: T.sn, flexWrap: "wrap" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                <span style={{ fontSize: 11, color: T.d }}>Anthropic</span>
-                <span style={{ width: 8, height: 8, borderRadius: "50%", background: apiKey ? T.g : T.rd }} title={apiKey ? "Key configured" : "Set VITE_ANTHROPIC_API_KEY in .env"} />
-                <span style={{ fontSize: 11, color: apiKey ? T.d : T.rd }}>{apiKey ? "Connected" : "Missing — set VITE_ANTHROPIC_API_KEY"}</span>
+                <span style={{ fontSize: 11, color: T.d }}>Backend runtime</span>
+                <span style={{ width: 8, height: 8, borderRadius: "50%", background: T.a }} title="Server-routed provider stack" />
+                <span style={{ fontSize: 11, color: T.d }}>Server-routed models</span>
               </div>
-              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                <span style={{ fontSize: 11, color: T.d }}>Reasoning</span>
-                <select
-                  value={altProvider}
-                  onChange={(e) => { setAltProvider(e.target.value); setAltApiKey(getEnvKeyForProvider(e.target.value)); setAltModel(""); }}
-                  style={{ fontSize: 11, background: T.s, color: T.t, border: `1px solid ${T.b}`, borderRadius: 4, padding: "2px 6px", fontFamily: T.sn }}
-                >
-                  <option value="">Claude Sonnet</option>
-                  {Object.entries(PROVIDERS).map(([k, p]) => <option key={k} value={k}>{p.name}</option>)}
-                </select>
-                {altProvider && (
+              {showAdvancedUi && (
+                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <span style={{ fontSize: 11, color: T.d }}>Reasoning</span>
                   <select
-                    value={effectiveAltModel}
-                    onChange={(e) => setAltModel(e.target.value)}
+                    value={altProvider}
+                    onChange={(e) => { setAltProvider(e.target.value); setAltApiKey(getEnvKeyForProvider(e.target.value)); setAltModel(""); }}
                     style={{ fontSize: 11, background: T.s, color: T.t, border: `1px solid ${T.b}`, borderRadius: 4, padding: "2px 6px", fontFamily: T.sn }}
                   >
-                    {PROVIDERS[altProvider].models.map((m) => <option key={m} value={m}>{m}</option>)}
+                    <option value="">Claude Sonnet</option>
+                    {Object.entries(PROVIDERS).map(([k, p]) => <option key={k} value={k}>{p.name}</option>)}
                   </select>
-                )}
-                {altProvider && (
-                  <>
-                    <span style={{ width: 8, height: 8, borderRadius: "50%", background: altApiKey ? T.g : T.o }} />
-                    {!altApiKey && (
-                      <input
-                        type="password"
-                        placeholder={`${PROVIDERS[altProvider]?.name} API key`}
-                        value={altApiKey}
-                        onChange={(e) => setAltApiKey(e.target.value)}
-                        style={{ fontSize: 11, background: T.s, color: T.t, border: `1px solid ${T.b}`, borderRadius: 4, padding: "2px 8px", width: 160, fontFamily: T.sn }}
-                      />
-                    )}
-                  </>
-                )}
-              </div>
+                  {altProvider && (
+                    <select
+                      value={effectiveAltModel}
+                      onChange={(e) => setAltModel(e.target.value)}
+                      style={{ fontSize: 11, background: T.s, color: T.t, border: `1px solid ${T.b}`, borderRadius: 4, padding: "2px 6px", fontFamily: T.sn }}
+                    >
+                      {PROVIDERS[altProvider].models.map((m) => <option key={m} value={m}>{m}</option>)}
+                    </select>
+                  )}
+                  {altProvider && (
+                    <>
+                      <span style={{ width: 8, height: 8, borderRadius: "50%", background: altApiKey ? T.g : T.o }} />
+                      {!altApiKey && (
+                        <input
+                          type="password"
+                          placeholder={`${PROVIDERS[altProvider]?.name} API key`}
+                          value={altApiKey}
+                          onChange={(e) => setAltApiKey(e.target.value)}
+                          style={{ fontSize: 11, background: T.s, color: T.t, border: `1px solid ${T.b}`, borderRadius: 4, padding: "2px 8px", width: 160, fontFamily: T.sn }}
+                        />
+                      )}
+                    </>
+                  )}
+                </div>
+              )}
             </div>
           </div>
           <div style={{ marginTop: S.s, display: "flex", gap: S.s, flexWrap: "wrap" }}>
@@ -280,17 +283,35 @@ export default function App() {
               <Tab active={state.activeTab === "brief"} label="Decision Brief" onClick={() => dispatch({ type: "SET_TAB", value: "brief" })} />
               <Tab active={state.activeTab === "devils"} label="Critical Review" onClick={() => dispatch({ type: "SET_TAB", value: "devils" })} />
               <Tab active={state.activeTab === "sources"} label="Sources" onClick={() => dispatch({ type: "SET_TAB", value: "sources" })} count={state.searchLog.length} />
-              <Tab active={state.activeTab === "metadata"} label="Run Metadata" onClick={() => dispatch({ type: "SET_TAB", value: "metadata" })} />
-              <Tab active={state.activeTab === "evidence"} label="Evidence Inspector" onClick={() => dispatch({ type: "SET_TAB", value: "evidence" })} />
-              <Tab active={state.activeTab === "scenarios"} label="Scenarios" onClick={() => dispatch({ type: "SET_TAB", value: "scenarios" })} />
               <Tab active={state.activeTab === "history"} label="History" onClick={() => dispatch({ type: "SET_TAB", value: "history" })} count={state.history.length} />
-              <Tab active={state.activeTab === "replay"} label="Trace Replay" onClick={() => dispatch({ type: "SET_TAB", value: "replay" })} />
-              <Tab active={state.activeTab === "rundiff"} label="Run Diff" onClick={() => dispatch({ type: "SET_TAB", value: "rundiff" })} />
-              <Tab active={state.activeTab === "reviews"} label="Review Queue" onClick={() => dispatch({ type: "SET_TAB", value: "reviews" })} />
-              <Tab active={state.activeTab === "lineage"} label="Lineage Explorer" onClick={() => dispatch({ type: "SET_TAB", value: "lineage" })} />
-              <Tab active={state.activeTab === "telemetry"} label="Telemetry" onClick={() => dispatch({ type: "SET_TAB", value: "telemetry" })} />
-              <Tab active={state.activeTab === "simulator"} label="Policy Simulator" onClick={() => dispatch({ type: "SET_TAB", value: "simulator" })} />
-              {(state.compareWith || state.history.length >= 2) && (
+              {showAdvancedUi && (
+                <Tab active={state.activeTab === "metadata"} label="Run Metadata" onClick={() => dispatch({ type: "SET_TAB", value: "metadata" })} />
+              )}
+              {showAdvancedUi && (
+                <Tab active={state.activeTab === "evidence"} label="Evidence Inspector" onClick={() => dispatch({ type: "SET_TAB", value: "evidence" })} />
+              )}
+              {showAdvancedUi && (
+                <Tab active={state.activeTab === "scenarios"} label="Scenarios" onClick={() => dispatch({ type: "SET_TAB", value: "scenarios" })} />
+              )}
+              {showAdvancedUi && (
+                <Tab active={state.activeTab === "replay"} label="Trace Replay" onClick={() => dispatch({ type: "SET_TAB", value: "replay" })} />
+              )}
+              {showAdvancedUi && (
+                <Tab active={state.activeTab === "rundiff"} label="Run Diff" onClick={() => dispatch({ type: "SET_TAB", value: "rundiff" })} />
+              )}
+              {showAdvancedUi && (
+                <Tab active={state.activeTab === "reviews"} label="Review Queue" onClick={() => dispatch({ type: "SET_TAB", value: "reviews" })} />
+              )}
+              {showAdvancedUi && (
+                <Tab active={state.activeTab === "lineage"} label="Lineage Explorer" onClick={() => dispatch({ type: "SET_TAB", value: "lineage" })} />
+              )}
+              {showAdvancedUi && (
+                <Tab active={state.activeTab === "telemetry"} label="Telemetry" onClick={() => dispatch({ type: "SET_TAB", value: "telemetry" })} />
+              )}
+              {showAdvancedUi && (
+                <Tab active={state.activeTab === "simulator"} label="Policy Simulator" onClick={() => dispatch({ type: "SET_TAB", value: "simulator" })} />
+              )}
+              {showAdvancedUi && (state.compareWith || state.history.length >= 2) && (
                 <Tab active={state.activeTab === "changes"} label="What Changed" onClick={() => dispatch({ type: "SET_TAB", value: "changes" })} />
               )}
               <button onClick={() => window.print()} style={{ marginLeft: "auto", background: "#FFFFFF", border: `1px solid ${T.b}`, borderRadius: 999, padding: "6px 14px", fontSize: 11, fontFamily: T.sn, fontWeight: 500, color: T.m, cursor: "pointer" }}>
@@ -300,17 +321,17 @@ export default function App() {
             {state.activeTab === "brief" && <BriefView d={state.brief} />}
             {state.activeTab === "devils" && <DevilsView d={state.brief} />}
             {state.activeTab === "sources" && <SourcesView d={state.brief} searchLog={state.searchLog} />}
-            {state.activeTab === "metadata" && <RunMetadataView d={state.brief} />}
-            {state.activeTab === "evidence" && <EvidenceInspectorView d={state.brief} />}
-            {state.activeTab === "scenarios" && <ScenarioPanel state={state} dispatch={dispatch} onReanalyze={handleScenarioReanalyze} />}
+            {showAdvancedUi && state.activeTab === "metadata" && <RunMetadataView d={state.brief} />}
+            {showAdvancedUi && state.activeTab === "evidence" && <EvidenceInspectorView d={state.brief} />}
+            {showAdvancedUi && state.activeTab === "scenarios" && <ScenarioPanel state={state} dispatch={dispatch} onReanalyze={handleScenarioReanalyze} />}
             {state.activeTab === "history" && <HistoryView history={state.history} onLoad={handleLoadHistory} onCompare={handleCompare} currentBrief={state.brief} />}
-            {state.activeTab === "replay" && <TraceReplayView initialRunId={latestRunId} />}
-            {state.activeTab === "rundiff" && <TraceDiffView defaultA={latestRunId} />}
-            {state.activeTab === "reviews" && <ReviewQueueView />}
-            {state.activeTab === "lineage" && <LineageExplorerView initialRunId={latestRunId} />}
-            {state.activeTab === "telemetry" && <TelemetryDashboardView />}
-            {state.activeTab === "simulator" && <PolicySimulatorView />}
-            {state.activeTab === "changes" && <DiffView current={state.history[0] ?? state.brief} previous={state.compareWith ?? state.history[1]} />}
+            {showAdvancedUi && state.activeTab === "replay" && <TraceReplayView initialRunId={latestRunId} />}
+            {showAdvancedUi && state.activeTab === "rundiff" && <TraceDiffView defaultA={latestRunId} />}
+            {showAdvancedUi && state.activeTab === "reviews" && <ReviewQueueView />}
+            {showAdvancedUi && state.activeTab === "lineage" && <LineageExplorerView initialRunId={latestRunId} />}
+            {showAdvancedUi && state.activeTab === "telemetry" && <TelemetryDashboardView />}
+            {showAdvancedUi && state.activeTab === "simulator" && <PolicySimulatorView />}
+            {showAdvancedUi && state.activeTab === "changes" && <DiffView current={state.history[0] ?? state.brief} previous={state.compareWith ?? state.history[1]} />}
           </div>
         )}
       </div>

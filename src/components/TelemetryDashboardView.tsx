@@ -14,6 +14,7 @@ type Overview = {
     fallback_events?: number;
   }>;
 };
+const tenantId = import.meta.env.VITE_TENANT_ID || "local-dev";
 
 export function TelemetryDashboardView() {
   const [data, setData] = useState<Overview | null>(null);
@@ -24,7 +25,9 @@ export function TelemetryDashboardView() {
     setLoading(true);
     setError("");
     try {
-      const res = await fetch("/api/telemetry/overview?limit=200");
+      const res = await fetch("/api/telemetry/overview?limit=200", {
+        headers: { "x-tenant-id": tenantId },
+      });
       if (!res.ok) throw new Error("Failed to load telemetry");
       setData((await res.json()) as Overview);
     } catch (e) {

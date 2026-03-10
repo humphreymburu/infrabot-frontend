@@ -3,6 +3,8 @@ import { Badge } from "./ui/Badge";
 import type { AgentProgressMap, SearchEntry } from "../types";
 
 const AGENTS = [
+  { key: "planner", label: "Policy Planner", icon: "⌁" },
+  { key: "compress", label: "Input Compressor", icon: "⇣" },
   { key: "cost", label: "Cost Modeler", icon: "$" },
   { key: "arch", label: "Architecture Analyst", icon: "◈" },
   { key: "ops", label: "Operations & SRE", icon: "⚙" },

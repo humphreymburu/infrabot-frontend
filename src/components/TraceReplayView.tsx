@@ -2,6 +2,7 @@ import { useState } from "react";
 import { T, S } from "../lib/theme";
 
 type TraceEvent = Record<string, unknown>;
+const tenantId = import.meta.env.VITE_TENANT_ID || "local-dev";
 
 export function TraceReplayView({ initialRunId }: { initialRunId?: string }) {
   const [runId, setRunId] = useState(initialRunId || "");
@@ -16,8 +17,8 @@ export function TraceReplayView({ initialRunId }: { initialRunId?: string }) {
     setError("");
     try {
       const [sRes, eRes] = await Promise.all([
-        fetch(`/api/traces/${encodeURIComponent(runId.trim())}/summary`),
-        fetch(`/api/traces/${encodeURIComponent(runId.trim())}/events?limit=500`),
+        fetch(`/api/traces/${encodeURIComponent(runId.trim())}/summary`, { headers: { "x-tenant-id": tenantId } }),
+        fetch(`/api/traces/${encodeURIComponent(runId.trim())}/events?limit=500`, { headers: { "x-tenant-id": tenantId } }),
       ]);
       if (!sRes.ok || !eRes.ok) throw new Error("Trace not found");
       const s = (await sRes.json()) as Record<string, unknown>;
