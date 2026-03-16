@@ -27,8 +27,8 @@ export const T = {
   d: "#9CA3AF",
 
   // Fonts
-  mn: "'JetBrains Mono', 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace",
-  sn: "'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', sans-serif",
+  mn: "'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace",
+  sn: "'Space Grotesk', 'Avenir Next', 'Segoe UI', sans-serif",
 };
 
 // 8px grid spacing scale

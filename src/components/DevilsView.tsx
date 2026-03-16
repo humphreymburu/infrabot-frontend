@@ -6,6 +6,7 @@ import type { Brief } from "../types";
 export function DevilsView({ d }: { d: Brief | null }) {
   if (!d?.devils_advocate) return <p style={{ color: T.d, fontSize: 13, padding: 20 }}>No critical review available.</p>;
   const da = d.devils_advocate;
+  const challenges = Array.isArray(da.challenges) ? da.challenges : [];
   return (
     <div style={{ animation: "briefIn 0.5s ease" }}>
       <div style={{ background: T.rD, border: "1px solid rgba(248,113,113,0.2)", borderRadius: 12, padding: 22, marginBottom: 12 }}>
@@ -17,18 +18,24 @@ export function DevilsView({ d }: { d: Brief | null }) {
         </div>
       </div>
 
-      {da.challenges && da.challenges.length > 0 && (
-        <Sec title={`Challenges (${da.challenges.length})`} icon="✗">
-          {da.challenges.map((c, i) => (
+      {challenges.length > 0 && (
+        <Sec title={`Challenges (${challenges.length})`} icon="✗">
+          {challenges.map((c, i) => {
+            const claim = String(c.claim || c.issue || c.title || "").trim();
+            const challenge = String(c.challenge || c.impact || c.detail || "").trim();
+            const suggestion = String(c.suggestion || c.mitigation || c.recommendation || "").trim();
+            const sev = String(c.severity || "MEDIUM").toUpperCase();
+            return (
             <div key={i} style={{ background: T.s, padding: 14, borderRadius: 8, border: `1px solid ${T.b}`, marginBottom: 8 }}>
               <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
-                <span style={{ fontSize: 12, color: T.t, fontWeight: 600 }}>{c.claim}</span>
-                <Badge color={c.severity === "CRITICAL" ? T.rd : c.severity === "HIGH" ? T.o : T.y} bg={c.severity === "CRITICAL" ? T.rD : T.yD}>{c.severity}</Badge>
+                <span style={{ fontSize: 12, color: T.t, fontWeight: 600 }}>{claim || "Unspecified challenge"}</span>
+                <Badge color={sev === "CRITICAL" ? T.rd : sev === "HIGH" ? T.o : T.y} bg={sev === "CRITICAL" ? T.rD : T.yD}>{sev}</Badge>
               </div>
-              <p style={{ fontSize: 12, color: T.m, margin: "0 0 4px" }}>{c.challenge}</p>
-              <p style={{ fontSize: 11, color: T.g, margin: 0 }}>→ {c.suggestion}</p>
+              <p style={{ fontSize: 12, color: T.m, margin: "0 0 4px" }}>{challenge || "—"}</p>
+              <p style={{ fontSize: 11, color: T.g, margin: 0 }}>→ {suggestion || "No mitigation provided."}</p>
             </div>
-          ))}
+          );
+          })}
         </Sec>
       )}
 

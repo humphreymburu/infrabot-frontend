@@ -1,7 +1,10 @@
 import { useState, useRef, useCallback, useEffect, useReducer } from "react";
 import { reducer, initialState } from "../store/reducer";
 import { PROVIDERS, getEnvKeyForProvider } from "../api/config";
-import type { Action, AltConfig, AgentKey, AgentStatus, AppPhase, Brief, PolicyPreview } from "../types";
+import type {
+  Action, AltConfig, AgentKey, AgentStatus, AppPhase, Brief, PolicyPreview,
+  SharedEvidenceItem, WorkflowEdge, WorkflowNode, WorkflowNodeStatus,
+} from "../types";
 
 type ErrorReportingWindow = Window & { __reportError?: (msg: string) => void };
 
@@ -152,16 +155,83 @@ export function useAppLogic() {
     safe({ type: "SET_PHASE", value: "researching" });
     safe({ type: "CLEAR_SEARCHES" });
     safe({ type: "RESET_AGENTS" });
+    safe({ type: "RESET_WORKFLOW_GRAPH" });
+    safe({ type: "RESET_SHARED_EVIDENCE" });
     safe({ type: "SET_TAB", value: "brief" });
 
     let userMsg = text ?? buildUserMessage();
+    let featureInventory: Record<string, unknown> | undefined;
+    let benchmarkReport: Record<string, unknown> | undefined;
+    let currentStackConfig: Record<string, unknown> | undefined;
+    let proposedStackConfig: Record<string, unknown> | undefined;
+    let workloadAssumptions: Record<string, unknown> | undefined;
+    const parseArtifactJson = (raw: string | undefined): void => {
+      if (!raw || !raw.trim()) return;
+      try {
+        const parsed = JSON.parse(raw) as Record<string, unknown>;
+        if (parsed && typeof parsed === "object") {
+          if (Array.isArray(parsed.features)) featureInventory = parsed;
+          if (Array.isArray(parsed.runs)) benchmarkReport = parsed;
+          if (parsed.feature_inventory && typeof parsed.feature_inventory === "object") {
+            featureInventory = parsed.feature_inventory as Record<string, unknown>;
+          }
+          if (parsed.benchmark_report && typeof parsed.benchmark_report === "object") {
+            benchmarkReport = parsed.benchmark_report as Record<string, unknown>;
+          }
+          if (parsed.current_stack_config && typeof parsed.current_stack_config === "object") {
+            currentStackConfig = parsed.current_stack_config as Record<string, unknown>;
+          }
+          if (parsed.proposed_stack_config && typeof parsed.proposed_stack_config === "object") {
+            proposedStackConfig = parsed.proposed_stack_config as Record<string, unknown>;
+          }
+          if (parsed.workload_assumptions && typeof parsed.workload_assumptions === "object") {
+            workloadAssumptions = parsed.workload_assumptions as Record<string, unknown>;
+          }
+        }
+      } catch {
+        // Ignore non-JSON artifact content.
+      }
+    };
+    parseArtifactJson(state.context.featureInventoryData?.content);
+    parseArtifactJson(state.context.benchmarkReportData?.content);
+    parseArtifactJson(state.context.uploadedData?.content);
     const intakePayload = {
       budget: state.context.budget || undefined,
       timeline: state.context.timeline || undefined,
       risk_appetite: state.context.riskAppetite || undefined,
       compliance: state.context.compliance.length ? state.context.compliance : undefined,
+      feature_inventory: featureInventory,
+      benchmark_report: benchmarkReport,
+      current_stack_config: (() => {
+        const fromForm: Record<string, unknown> = {
+          instance_type: state.context.currentInstanceType || undefined,
+          node_count: state.context.currentNodeCount || undefined,
+          storage_gb: state.context.currentStorageGb || undefined,
+          region: state.context.currentRegion || undefined,
+        };
+        const merged = { ...(currentStackConfig || {}), ...fromForm };
+        return Object.values(merged).some((v) => String(v ?? "").trim().length > 0) ? merged : undefined;
+      })(),
+      proposed_stack_config: (() => {
+        const fromForm: Record<string, unknown> = {
+          tier: state.context.proposedTier || undefined,
+          search_units: state.context.proposedSearchUnits || undefined,
+          storage_gb: state.context.proposedStorageGb || undefined,
+          region: state.context.proposedRegion || undefined,
+        };
+        const merged = { ...(proposedStackConfig || {}), ...fromForm };
+        return Object.values(merged).some((v) => String(v ?? "").trim().length > 0) ? merged : undefined;
+      })(),
+      workload_assumptions: (() => {
+        const fromForm: Record<string, unknown> = {
+          doc_count: state.context.workloadDocCount || undefined,
+          qps: state.context.workloadQps || undefined,
+          growth_3y_multiplier: state.context.workloadGrowth3yMultiplier || undefined,
+        };
+        const merged = { ...(workloadAssumptions || {}), ...fromForm };
+        return Object.values(merged).some((v) => String(v ?? "").trim().length > 0) ? merged : undefined;
+      })(),
     };
-
     // Inject prior analysis context if a similar brief exists in history
     const queryWords = userMsg.toLowerCase().split(/\s+/).filter((w) => w.length > 4);
     const similar = state.history.find((h) => {
@@ -188,7 +258,22 @@ export function useAppLogic() {
       });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
-        const detail = Array.isArray(body.detail) ? body.detail.map((o: { msg?: string }) => o?.msg).filter(Boolean).join("; ") : body.detail;
+        const detail = body?.detail;
+        if (Array.isArray(detail)) {
+          const msg = detail.map((o: { msg?: string }) => o?.msg).filter(Boolean).join("; ");
+          throw new Error(msg || res.statusText);
+        }
+        if (detail && typeof detail === "object") {
+          const code = String((detail as { code?: unknown }).code || "").trim();
+          const msg = String((detail as { message?: unknown }).message || "").trim();
+          const missing = Array.isArray((detail as { missing_fields?: unknown }).missing_fields)
+            ? ((detail as { missing_fields: unknown[] }).missing_fields.map((x) => String(x)).filter(Boolean))
+            : [];
+          const pretty = [msg || code || "Request validation failed", missing.length ? `Missing: ${missing.join(", ")}` : ""]
+            .filter(Boolean)
+            .join(" — ");
+          throw new Error(pretty || res.statusText);
+        }
         throw new Error(String(detail ?? res.statusText));
       }
       const backendRunId = res.headers.get("x-run-id");
@@ -217,6 +302,23 @@ export function useAppLogic() {
           if (agent && status) safe({ type: "UPDATE_AGENT", agent, status });
           return;
         }
+        if (t === "workflow_graph") {
+          const nodes = Array.isArray(ev.nodes) ? (ev.nodes as WorkflowNode[]) : [];
+          const edges = Array.isArray(ev.edges) ? (ev.edges as WorkflowEdge[]) : [];
+          const stateMap = (ev.state && typeof ev.state === "object") ? (ev.state as Record<string, WorkflowNodeStatus>) : {};
+          safe({ type: "SET_WORKFLOW_GRAPH", value: { nodes, edges, state: stateMap, runtime: {} } });
+          return;
+        }
+        if (t === "workflow_node") {
+          const nodeId = String(ev.node_id || "");
+          const status = String(ev.status || "") as WorkflowNodeStatus;
+          const durationRaw = ev.duration_ms;
+          const durationMs = typeof durationRaw === "number" ? durationRaw : undefined;
+          const reason = typeof ev.reason === "string" ? ev.reason : undefined;
+          const ts = typeof ev.ts === "string" ? ev.ts : undefined;
+          if (nodeId && status) safe({ type: "UPDATE_WORKFLOW_NODE", nodeId, status, durationMs, reason, ts });
+          return;
+        }
         if (t === "agent_error_detail") {
           console.error(
             `[Atlas AI] Agent failure run_id=${String(ev.run_id || "")} agent=${String(ev.agent || "")} provider=${String(ev.provider || "")} model=${String(ev.model || "")} error=${String(ev.error || "")} detail=${String(ev.detail || "")}`,
@@ -234,12 +336,48 @@ export function useAppLogic() {
           const tsRaw = ev.ts;
           const ts = typeof tsRaw === "string" ? Date.parse(tsRaw) : Date.now();
           if (query) safe({ type: "ADD_SEARCH", value: { agent, query, ts: Number.isFinite(ts) ? ts : Date.now() } });
+          console.log(
+            `[Atlas AI] Web research query run_id=${String(ev.run_id || "")} agent=${agent} query=${query}`,
+          );
           return;
         }
         if (t === "search_results") {
-          console.info(
-            `[Atlas AI] Grounded search run_id=${String(ev.run_id || "")} agent=${String(ev.agent || "")} provider=${String(ev.provider || "")} count=${String(ev.count || 0)}`,
+          const agent = String(ev.agent || "agent");
+          const provider = String(ev.provider || "");
+          const tsRaw = ev.ts;
+          const ts = typeof tsRaw === "string" ? Date.parse(tsRaw) : Date.now();
+          const results = Array.isArray(ev.results)
+            ? (ev.results as Array<Record<string, unknown>>).map((r) => ({
+                title: String(r?.title || "").trim(),
+                url: String(r?.url || "").trim(),
+              }))
+            : [];
+          if (results.length > 0) {
+            safe({
+              type: "ADD_SEARCH_RESULTS",
+              value: {
+                agent,
+                provider: provider || undefined,
+                results,
+                ts: Number.isFinite(ts) ? ts : Date.now(),
+              },
+            });
+          }
+          console.log(
+            `[Atlas AI] Web research results run_id=${String(ev.run_id || "")} agent=${String(ev.agent || "")} provider=${String(ev.provider || "")} count=${String(ev.count || 0)}`,
             ev.results,
+          );
+          return;
+        }
+        if (t === "shared_evidence_index") {
+          const globalSearchPreview = Array.isArray(ev.global_search_preview)
+            ? (ev.global_search_preview as Array<{ title?: string; url?: string }>)
+            : [];
+          const byAgent = Array.isArray(ev.by_agent) ? (ev.by_agent as SharedEvidenceItem[]) : [];
+          safe({ type: "SET_SHARED_EVIDENCE", value: { globalSearchPreview, byAgent } });
+          console.log(
+            `[Atlas AI] Shared web research index run_id=${String(ev.run_id || "")} global=${globalSearchPreview.length} agents=${byAgent.length}`,
+            { globalSearchPreview, byAgent },
           );
           return;
         }

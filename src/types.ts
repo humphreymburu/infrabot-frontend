@@ -19,7 +19,20 @@ export interface AppContext {
   timeline: string;
   riskAppetite: string;
   cloud: string;
+  currentInstanceType: string;
+  currentNodeCount: string;
+  currentStorageGb: string;
+  currentRegion: string;
+  proposedTier: string;
+  proposedSearchUnits: string;
+  proposedStorageGb: string;
+  proposedRegion: string;
+  workloadDocCount: string;
+  workloadQps: string;
+  workloadGrowth3yMultiplier: string;
   uploadedData: { name: string; content: string } | null;
+  featureInventoryData: { name: string; content: string } | null;
+  benchmarkReportData: { name: string; content: string } | null;
   guidedStep1: string;
   guidedStep2: string;
   guidedStep3: string;
@@ -36,6 +49,38 @@ export interface SearchEntry {
   agent: string;
   query: string;
   ts: number;
+}
+
+export interface SearchResultEntry {
+  agent: string;
+  provider?: string;
+  results: Array<{ title?: string; url?: string }>;
+  ts: number;
+}
+
+export interface SharedEvidenceItem {
+  agent: string;
+  results: Array<{ title?: string; url?: string }>;
+}
+
+export type WorkflowNodeStatus = "pending" | "running" | "done" | "error";
+
+export interface WorkflowNode {
+  id: string;
+  label: string;
+  stage: string;
+}
+
+export interface WorkflowEdge {
+  from: string;
+  to: string;
+}
+
+export interface WorkflowGraphState {
+  nodes: WorkflowNode[];
+  edges: WorkflowEdge[];
+  state: Record<string, WorkflowNodeStatus>;
+  runtime: Record<string, { durationMs?: number; lastError?: string; lastTs?: string }>;
 }
 
 export interface Alternative {
@@ -80,6 +125,43 @@ export interface Brief {
     growth_assumption?: string;
     migration_cost?: string;
     tco_3y?: string;
+  };
+  feature_parity_validation?: {
+    critical_features?: Array<{
+      feature?: string;
+      current_support?: string;
+      proposed_support?: string;
+      gap_risk?: string;
+      mitigation?: string;
+    }>;
+    unresolved_gaps?: string[];
+    gate_status?: string;
+    required_actions?: string[];
+  };
+  benchmark_validation?: {
+    benchmark_runs?: Array<{
+      scenario?: string;
+      dataset_size_docs?: string;
+      query_mix?: string;
+      target_slo?: string;
+      result?: string;
+    }>;
+    gate_status?: string;
+    required_actions?: string[];
+  };
+  artifact_validation?: {
+    valid?: boolean;
+    feature_inventory?: {
+      valid?: boolean;
+      errors?: string[];
+      coverage_count?: number;
+    };
+    benchmark_report?: {
+      valid?: boolean;
+      errors?: string[];
+      run_count?: number;
+      pass_count?: number;
+    };
   };
   meta?: {
     title?: string;
@@ -192,8 +274,123 @@ export interface Brief {
     proposed_monthly?: string;
     year_1_total?: string;
     year_3_total?: string;
+    month_24_total?: string;
+    current_24_total?: string;
     migration_one_time?: string;
     roi_timeline?: string;
+    foundation_status?: string;
+    source_type?: Record<string, string>;
+    cost_basis?: {
+      current?: {
+        service?: string;
+        sku_or_tier?: string;
+        instance_type?: string;
+        tier?: string;
+        node_count?: number;
+        search_units?: number;
+        replicas?: number;
+        partitions?: number;
+        storage_gb?: number;
+        monthly_cost_usd?: number;
+        region?: string;
+        source?: string;
+      };
+      proposed?: {
+        service?: string;
+        sku_or_tier?: string;
+        instance_type?: string;
+        tier?: string;
+        node_count?: number;
+        search_units?: number;
+        replicas?: number;
+        partitions?: number;
+        storage_gb?: number;
+        monthly_cost_usd?: number;
+        region?: string;
+        source?: string;
+      };
+      completeness_score?: number;
+      missing?: string[];
+      assumption_notes?: string[];
+      foundation_source?: string;
+      explicit_complete?: boolean;
+      evidence_rows?: Array<{
+        service?: string;
+        sku_or_tier?: string;
+        monthly_cost_usd?: number;
+        source?: string;
+      }>;
+    };
+    custom_cost_estimate?: {
+      inputs?: Record<string, unknown>;
+      monthly_current_usd?: number;
+      monthly_proposed_usd?: number;
+      monthly_delta_usd?: number;
+      migration_one_time_usd?: number;
+      people_ops_cost?: {
+        hourly_rate_usd?: number;
+        current_hours_monthly?: number;
+        proposed_hours_monthly?: number;
+        current_monthly_usd?: number;
+        proposed_monthly_usd?: number;
+        monthly_delta_usd?: number;
+      };
+      migration_execution_cost?: {
+        hours_low?: number;
+        hours_base?: number;
+        hours_high?: number;
+        cost_low_usd?: number;
+        cost_base_usd?: number;
+        cost_high_usd?: number;
+      };
+      total_economics_3y?: {
+        infra_current_usd?: number;
+        infra_proposed_usd?: number;
+        people_current_usd?: number;
+        people_proposed_usd?: number;
+        total_current_usd?: number;
+        total_proposed_usd?: number;
+        delta_usd?: number;
+      };
+      totals_usd?: {
+        current_12_month?: number;
+        proposed_12_month?: number;
+        current_24_month?: number;
+        proposed_24_month?: number;
+        current_36_month?: number;
+        proposed_36_month?: number;
+      };
+      scaling_model?: {
+        current_platform?: {
+          unit?: string;
+          base_units?: number;
+          base_unit_cost_usd?: number;
+          max_units_36m?: number;
+        };
+        proposed_platform?: {
+          unit?: string;
+          base_units?: number;
+          base_unit_cost_usd?: number;
+          max_units_36m?: number;
+        };
+        sensitivity_3y?: Record<string, {
+          current_36_month?: number;
+          proposed_36_month?: number;
+          delta_36_month?: number;
+          current_final_units?: number;
+          proposed_final_units?: number;
+        }>;
+      };
+      risk_adjusted_3y?: {
+        low?: { proposed_total_usd?: number; notes?: string };
+        base?: { proposed_total_usd?: number; notes?: string };
+        high?: { proposed_total_usd?: number; notes?: string };
+        current_baseline_usd?: number;
+      };
+      break_even_month?: number;
+      assumptions?: string[];
+      sources?: string[];
+    };
     pricing_details?: Array<{
       service: string;
       sku_or_tier: string;
@@ -202,9 +399,29 @@ export interface Brief {
       monthly_cost: string;
       source?: string;
     }>;
+    cost_options?: Array<{
+      provider?: string;
+      service?: string;
+      tier_or_plan?: string;
+      capacity_units?: number | null;
+      region?: string;
+      unit_price_usd?: number | null;
+      estimated_monthly_usd?: number | null;
+      source?: string;
+    }>;
     hidden_costs?: Array<{ item: string; estimated: string; why_hidden?: string }>;
     savings_opportunities?: Array<{ opportunity: string; potential_savings: string; effort?: string }>;
   };
+  cost_options?: Array<{
+    provider?: string;
+    service?: string;
+    tier_or_plan?: string;
+    capacity_units?: number | null;
+    region?: string;
+    unit_price_usd?: number | null;
+    estimated_monthly_usd?: number | null;
+    source?: string;
+  }>;
   architecture_review?: {
     pattern_name?: string;
     pattern_rationale?: string;
@@ -379,6 +596,7 @@ export interface AppState {
   brief: Brief | null;
   history: Brief[];
   searchLog: SearchEntry[];
+  searchResults: SearchResultEntry[];
   agentProgress: AgentProgressMap;
   error: string | null;
   evalCritiques: [string, string][] | null;
@@ -387,6 +605,11 @@ export interface AppState {
   activeTab: string;
   showIntake: boolean;
   expandedModule: string | null;
+  workflowGraph: WorkflowGraphState | null;
+  sharedEvidence: {
+    globalSearchPreview: Array<{ title?: string; url?: string }>;
+    byAgent: SharedEvidenceItem[];
+  };
 }
 
 export type Action =
@@ -396,6 +619,7 @@ export type Action =
   | { type: "SET_BRIEF"; value: Brief }
   | { type: "SET_ERROR"; value: string | null }
   | { type: "ADD_SEARCH"; value: SearchEntry }
+  | { type: "ADD_SEARCH_RESULTS"; value: SearchResultEntry }
   | { type: "CLEAR_SEARCHES" }
   | { type: "UPDATE_AGENT"; agent: AgentKey; status: AgentStatus }
   | { type: "RESET_AGENTS" }
@@ -406,6 +630,11 @@ export type Action =
   | { type: "ADD_HISTORY"; value: Brief }
   | { type: "SET_SCENARIO"; value: Partial<ScenarioOverrides> }
   | { type: "SET_EXPANDED_MODULE"; value: string | null }
+  | { type: "SET_WORKFLOW_GRAPH"; value: WorkflowGraphState }
+  | { type: "UPDATE_WORKFLOW_NODE"; nodeId: string; status: WorkflowNodeStatus; durationMs?: number; reason?: string; ts?: string }
+  | { type: "RESET_WORKFLOW_GRAPH" }
+  | { type: "SET_SHARED_EVIDENCE"; value: { globalSearchPreview: Array<{ title?: string; url?: string }>; byAgent: SharedEvidenceItem[] } }
+  | { type: "RESET_SHARED_EVIDENCE" }
   | { type: "RESET" };
 
 export interface AltConfig {

@@ -1,14 +1,33 @@
 import { T } from "../lib/theme";
 import { Sec } from "./ui/Sec";
 import { Badge } from "./ui/Badge";
-import type { Brief, SearchEntry } from "../types";
+import type { Brief, SearchEntry, SearchResultEntry, SharedEvidenceItem } from "../types";
 
 interface SourcesViewProps {
   d: Brief | null;
   searchLog: SearchEntry[];
+  searchResults: SearchResultEntry[];
+  sharedEvidence?: {
+    globalSearchPreview: Array<{ title?: string; url?: string }>;
+    byAgent: SharedEvidenceItem[];
+  };
 }
 
-export function SourcesView({ d, searchLog }: SourcesViewProps) {
+export function SourcesView({ d, searchLog, searchResults, sharedEvidence }: SourcesViewProps) {
+  const MAX_SOURCES = 25;
+  const sourceMap = new Map<string, { title: string; url: string; key_data: string }>();
+  const pushSource = (src: { title?: string; url?: string; key_data?: string | null }) => {
+    const url = String(src.url || "").trim();
+    if (!url) return;
+    const key = url.toLowerCase();
+    if (sourceMap.has(key)) return;
+    sourceMap.set(key, {
+      title: String(src.title || url).trim(),
+      url,
+      key_data: String(src.key_data || "").trim(),
+    });
+  };
+
   const directSources = d?.research_sources || [];
   const graphRows = d?.evidence_governance?.claim_citation_graph || [];
   const derivedSources = Array.from(
@@ -25,12 +44,32 @@ export function SourcesView({ d, searchLog }: SourcesViewProps) {
         ]),
     ).values(),
   );
-  const sourcesToShow = directSources.length > 0 ? directSources : derivedSources;
+  for (const src of directSources) pushSource(src || {});
+  for (const src of derivedSources) pushSource(src || {});
+  for (const row of d?.cost_analysis?.pricing_details || []) {
+    const r = row || {};
+    pushSource({
+      title: `${String((r as Record<string, unknown>).service || "Pricing source")}`,
+      url: String((r as Record<string, unknown>).source || "").trim(),
+      key_data: `${String((r as Record<string, unknown>).sku_or_tier || "")} ${String((r as Record<string, unknown>).unit_price || "")}`.trim(),
+    });
+  }
+  for (const u of d?.cost_analysis?.custom_cost_estimate?.sources || []) {
+    pushSource({ title: "Cost estimation source", url: String(u || "").trim(), key_data: "" });
+  }
+  for (const s of sharedEvidence?.globalSearchPreview || []) pushSource({ title: s.title, url: s.url, key_data: "" });
+  for (const agentRows of sharedEvidence?.byAgent || []) {
+    for (const r of agentRows.results || []) pushSource({ title: r.title, url: r.url, key_data: `agent:${agentRows.agent}` });
+  }
+  for (const bucket of searchResults || []) {
+    for (const r of bucket.results || []) pushSource({ title: r.title, url: r.url, key_data: `agent:${bucket.agent}` });
+  }
+  const sourcesToShow = Array.from(sourceMap.values()).slice(0, MAX_SOURCES);
 
   return (
     <div style={{ animation: "briefIn 0.5s ease" }}>
       {sourcesToShow.length > 0 && (
-        <Sec title={`Verified Sources (${sourcesToShow.length})`} icon="🔍">
+        <Sec title={`Verified Sources (${sourcesToShow.length}${sourceMap.size > MAX_SOURCES ? ` of ${sourceMap.size}` : ""})`} icon="🔍">
           {sourcesToShow.map((src, i) => {
             const s = (src || {}) as Record<string, unknown>;
             const url = String(s.url || s.source_url || s.source || s.link || "").trim();

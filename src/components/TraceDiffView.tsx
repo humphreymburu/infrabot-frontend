@@ -43,6 +43,14 @@ export function TraceDiffView({ defaultA }: { defaultA?: string }) {
     }
   };
 
+  const fmt = (v: unknown): string => {
+    if (v == null) return "";
+    if (typeof v === "object") {
+      try { return JSON.stringify(v); } catch { return String(v); }
+    }
+    return String(v);
+  };
+
   return (
     <div style={{ background: T.s, border: `1px solid ${T.b}`, borderRadius: 12, padding: S.l }}>
       <h3 style={{ margin: "0 0 10px", fontSize: 14, color: T.t }}>Run Diff</h3>
@@ -95,8 +103,8 @@ export function TraceDiffView({ defaultA }: { defaultA?: string }) {
         {Object.entries(diffs).map(([k, v]) => (
           <div key={k} style={{ padding: "8px 0", borderBottom: `1px solid ${T.b}` }}>
             <div style={{ fontSize: 11, color: T.t, fontWeight: 700 }}>{k}</div>
-            <div style={{ fontSize: 11, color: T.m, fontFamily: T.mn }}>A: {String(v.run_a)}</div>
-            <div style={{ fontSize: 11, color: T.m, fontFamily: T.mn }}>B: {String(v.run_b)}</div>
+            <div style={{ fontSize: 11, color: T.m, fontFamily: T.mn }}>A: {fmt(v.run_a)}</div>
+            <div style={{ fontSize: 11, color: T.m, fontFamily: T.mn }}>B: {fmt(v.run_b)}</div>
           </div>
         ))}
       </div>

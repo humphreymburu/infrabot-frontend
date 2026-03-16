@@ -49,15 +49,28 @@ interface BarProps {
 }
 
 export const Bar = ({ score, label, sub }: BarProps) => {
-  const hasScore = typeof score === "number";
-  const s = hasScore ? score : 0;
+  const inferFromText = (text?: string): { score: number; label: string } | null => {
+    const t = String(text || "").toLowerCase();
+    if (!t) return null;
+    if (t.includes("moderate to high")) return { score: 7, label: "MODERATE-HIGH" };
+    if (t.includes("high")) return { score: 8, label: "HIGH" };
+    if (t.includes("moderate")) return { score: 6, label: "MODERATE" };
+    if (t.includes("variable")) return { score: 5, label: "VARIABLE" };
+    if (t.includes("low")) return { score: 3, label: "LOW" };
+    return null;
+  };
+  const inferred = inferFromText(sub);
+  const hasScore = typeof score === "number" || Boolean(inferred);
+  const s = typeof score === "number" ? score : (inferred?.score ?? 0);
   const pct = (s / 10) * 100;
   const c = s >= 8 ? T.g : s >= 6 ? T.y : s >= 4 ? T.o : T.rd;
   return (
     <div style={{ marginBottom: 10 }}>
       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 3 }}>
         <span style={{ fontSize: 12, color: T.m }}>{label}</span>
-        <span style={{ fontSize: 11, color: hasScore ? c : T.d, fontWeight: 700, fontFamily: T.mn }}>{hasScore ? `${s}/10` : "—"}</span>
+        <span style={{ fontSize: 11, color: hasScore ? c : T.d, fontWeight: 700, fontFamily: T.mn }}>
+          {typeof score === "number" ? `${s}/10` : (inferred?.label || "—")}
+        </span>
       </div>
       <div style={{ height: 5, background: T.b, borderRadius: 3, overflow: "hidden" }}>
         <div style={{ height: "100%", width: `${hasScore ? pct : 0}%`, background: c, borderRadius: 3, transition: "width 1s ease" }} />
@@ -69,17 +82,33 @@ export const Bar = ({ score, label, sub }: BarProps) => {
 
 interface KVProps {
   label: string;
-  value?: string | number;
+  value?: unknown;
   mono?: boolean;
   color?: string;
 }
 
-export const KV = ({ label, value, mono, color }: KVProps) => (
-  <div style={{ background: T.s, padding: "10px 14px", borderRadius: 7, border: `1px solid ${T.b}` }}>
-    <div style={{ fontSize: 9, color: T.d, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 3, fontFamily: T.mn }}>{label}</div>
-    <div style={{ fontSize: 13, fontWeight: 700, color: color || T.t, fontFamily: mono ? T.mn : T.sn, wordBreak: "break-word" }}>{value || "—"}</div>
-  </div>
-);
+export const KV = ({ label, value, mono, color }: KVProps) => {
+  let text = "—";
+  if (value != null && value !== "") {
+    if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
+      text = String(value);
+    } else if (Array.isArray(value)) {
+      text = value.map((v) => (typeof v === "string" || typeof v === "number" ? String(v) : JSON.stringify(v))).join(", ");
+    } else {
+      try {
+        text = JSON.stringify(value);
+      } catch {
+        text = "—";
+      }
+    }
+  }
+  return (
+    <div style={{ background: T.s, padding: "10px 14px", borderRadius: 7, border: `1px solid ${T.b}` }}>
+      <div style={{ fontSize: 9, color: T.d, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 3, fontFamily: T.mn }}>{label}</div>
+      <div style={{ fontSize: 13, fontWeight: 700, color: color || T.t, fontFamily: mono ? T.mn : T.sn, wordBreak: "break-word" }}>{text}</div>
+    </div>
+  );
+};
 
 export const WTag = ({ w }: { w?: string }) => (
   <Badge color={({ PROPOSED: T.g, CURRENT: T.o, NEUTRAL: T.y } as Record<string, string>)[w ?? ""] || T.d}>{w}</Badge>

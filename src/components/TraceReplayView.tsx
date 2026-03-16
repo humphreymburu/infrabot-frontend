@@ -54,6 +54,19 @@ export function TraceReplayView({ initialRunId }: { initialRunId?: string }) {
           status={String(summary.status || "")} llm_calls={String((summary.metrics as Record<string, unknown> | undefined)?.llm_calls || 0)} search_calls={String((summary.metrics as Record<string, unknown> | undefined)?.search_calls || 0)}
         </div>
       )}
+      {summary && (
+        <div style={{ fontSize: 11, color: T.m, marginBottom: 10, border: `1px solid ${T.b}`, borderRadius: 8, padding: 8, background: T.bg }}>
+          <div style={{ fontSize: 11, color: T.t, fontWeight: 700, marginBottom: 6 }}>Workflow Nodes</div>
+          {Object.entries((((summary.workflow as Record<string, unknown> | undefined)?.nodes as Record<string, unknown>) || {})).map(([k, v]) => {
+            const row = (v || {}) as Record<string, unknown>;
+            return (
+              <div key={k} style={{ fontFamily: T.mn, fontSize: 10, padding: "3px 0", borderBottom: `1px solid ${T.b}` }}>
+                {k}: status={String(row.last_status || "")} transitions={String(row.transitions || 0)} last_ms={String(row.duration_ms_last || 0)} errors={String(row.errors || 0)}
+              </div>
+            );
+          })}
+        </div>
+      )}
       <div style={{ maxHeight: 380, overflow: "auto", border: `1px solid ${T.b}`, borderRadius: 8, padding: 8, background: T.bg }}>
         {events.length === 0 && <div style={{ color: T.d, fontSize: 12 }}>No events loaded.</div>}
         {events.map((ev, i) => (

@@ -3,7 +3,7 @@ import { PROVIDERS, getEnvKeyForProvider } from "./api/config";
 import { SCENARIOS, type Scenario } from "./lib/constants.ts";
 import { useAppLogic } from "./hooks/useAppLogic";
 import { IntakeForm } from "./components/IntakeForm";
-import { AgentProgress } from "./components/AgentProgress";
+import { NanobotWorkflowView } from "./components/NanobotWorkflowView";
 import { ScenarioPanel } from "./components/ScenarioPanel";
 import { BriefView } from "./components/BriefView";
 import { DevilsView } from "./components/DevilsView";
@@ -20,9 +20,12 @@ import { TelemetryDashboardView } from "./components/TelemetryDashboardView";
 import { PolicySimulatorView } from "./components/PolicySimulatorView";
 import { Tab } from "./components/ui/Badge";
 import type { Brief } from "./types";
+import { useEffect, useState } from "react";
 
 export default function App() {
   const showAdvancedUi = String(import.meta.env.VITE_ENABLE_ADVANCED_UI || "").toLowerCase() === "true";
+  const [showRuntimeDrawer, setShowRuntimeDrawer] = useState(false);
+  const [currentStep, setCurrentStep] = useState<1 | 2 | 3>(1);
   const {
     state, dispatch,
     altProvider, setAltProvider, setAltModel, altApiKey, setAltApiKey,
@@ -36,11 +39,25 @@ export default function App() {
   };
 
   const isAnalyzing = ["researching", "evaluating", "revising", "synthesizing"].includes(state.phase);
+  const canGoStep2 = isAnalyzing || Boolean(state.workflowGraph);
+  const canGoStep3 = Boolean(state.brief);
+
+  useEffect(() => {
+    if (isAnalyzing) setCurrentStep(2);
+    else if (state.brief) setCurrentStep(3);
+  }, [isAnalyzing, state.brief]);
+
+  const startAnalysis = (text?: string) => {
+    const candidate = text ?? getMainInput();
+    if (!candidate.trim() || state.phase !== "idle") return;
+    setCurrentStep(2);
+    void analyze(text);
+  };
 
   return (
     <div style={{ minHeight: "100vh", background: T.bg, color: T.t, fontFamily: T.sn }}>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600;700&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;600&display=swap');
         @keyframes briefIn{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}
         @keyframes spin{to{transform:rotate(360deg)}}
         @keyframes pulse{0%,100%{opacity:.3}50%{opacity:1}}
@@ -67,7 +84,7 @@ export default function App() {
               <div style={{ width: 38, height: 38, borderRadius: 10, background: `linear-gradient(135deg, ${T.a}, #6366F1)`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, fontWeight: 800, color: "#FFF" }}>⬡</div>
               <div>
                 <div style={{ fontSize: 20, fontWeight: 700, color: T.t, fontFamily: T.sn }}>Infrabot</div>
-                <div style={{ fontSize: 13, color: T.m, marginTop: 2, fontFamily: T.sn }}>Enterprise AI Architecture Analysis</div>
+                <div style={{ fontSize: 13, color: T.m, marginTop: 2, fontFamily: T.sn }}>Agentic Decision Orchestrator</div>
               </div>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 12, fontFamily: T.sn, flexWrap: "wrap" }}>
@@ -77,55 +94,82 @@ export default function App() {
                 <span style={{ fontSize: 11, color: T.d }}>Server-routed models</span>
               </div>
               {showAdvancedUi && (
-                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                  <span style={{ fontSize: 11, color: T.d }}>Reasoning</span>
-                  <select
-                    value={altProvider}
-                    onChange={(e) => { setAltProvider(e.target.value); setAltApiKey(getEnvKeyForProvider(e.target.value)); setAltModel(""); }}
-                    style={{ fontSize: 11, background: T.s, color: T.t, border: `1px solid ${T.b}`, borderRadius: 4, padding: "2px 6px", fontFamily: T.sn }}
-                  >
-                    <option value="">Claude Sonnet</option>
-                    {Object.entries(PROVIDERS).map(([k, p]) => <option key={k} value={k}>{p.name}</option>)}
-                  </select>
-                  {altProvider && (
-                    <select
-                      value={effectiveAltModel}
-                      onChange={(e) => setAltModel(e.target.value)}
-                      style={{ fontSize: 11, background: T.s, color: T.t, border: `1px solid ${T.b}`, borderRadius: 4, padding: "2px 6px", fontFamily: T.sn }}
-                    >
-                      {PROVIDERS[altProvider].models.map((m) => <option key={m} value={m}>{m}</option>)}
-                    </select>
-                  )}
-                  {altProvider && (
-                    <>
-                      <span style={{ width: 8, height: 8, borderRadius: "50%", background: altApiKey ? T.g : T.o }} />
-                      {!altApiKey && (
-                        <input
-                          type="password"
-                          placeholder={`${PROVIDERS[altProvider]?.name} API key`}
-                          value={altApiKey}
-                          onChange={(e) => setAltApiKey(e.target.value)}
-                          style={{ fontSize: 11, background: T.s, color: T.t, border: `1px solid ${T.b}`, borderRadius: 4, padding: "2px 8px", width: 160, fontFamily: T.sn }}
-                        />
-                      )}
-                    </>
-                  )}
-                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowRuntimeDrawer((v) => !v)}
+                  style={{ fontSize: 11, border: `1px solid ${T.b}`, background: T.s, color: T.t, borderRadius: 999, padding: "5px 10px", cursor: "pointer", fontFamily: T.sn }}
+                >
+                  Runtime Settings
+                </button>
               )}
             </div>
           </div>
-          <div style={{ marginTop: S.s, display: "flex", gap: S.s, flexWrap: "wrap" }}>
-            {["Parallel Agents", "Critical Review", "Scenario Modeling", "Cost Forecasting", "Migration Planner"].map((t) => (
-              <span key={t} style={{ fontSize: 11, fontFamily: T.sn, fontWeight: 500, color: T.a, padding: "4px 10px", background: T.aD, border: `1px solid ${T.aB}`, borderRadius: 999 }}>{t}</span>
-            ))}
-          </div>
+          {showAdvancedUi && showRuntimeDrawer && (
+            <div style={{ marginTop: S.s, border: `1px solid ${T.b}`, borderRadius: 10, background: T.bg, padding: "10px 12px", display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
+              <span style={{ fontSize: 11, color: T.m }}>Reasoning:</span>
+              <select
+                value={altProvider}
+                onChange={(e) => { setAltProvider(e.target.value); setAltApiKey(getEnvKeyForProvider(e.target.value)); setAltModel(""); }}
+                style={{ fontSize: 11, background: T.s, color: T.t, border: `1px solid ${T.b}`, borderRadius: 6, padding: "4px 8px", fontFamily: T.sn }}
+              >
+                <option value="">Claude Sonnet</option>
+                {Object.entries(PROVIDERS).map(([k, p]) => <option key={k} value={k}>{p.name}</option>)}
+              </select>
+              {altProvider && (
+                <select
+                  value={effectiveAltModel}
+                  onChange={(e) => setAltModel(e.target.value)}
+                  style={{ fontSize: 11, background: T.s, color: T.t, border: `1px solid ${T.b}`, borderRadius: 6, padding: "4px 8px", fontFamily: T.sn }}
+                >
+                  {PROVIDERS[altProvider].models.map((m) => <option key={m} value={m}>{m}</option>)}
+                </select>
+              )}
+              {altProvider && !altApiKey && (
+                <input
+                  type="password"
+                  placeholder={`${PROVIDERS[altProvider]?.name} API key`}
+                  value={altApiKey}
+                  onChange={(e) => setAltApiKey(e.target.value)}
+                  style={{ fontSize: 11, background: T.s, color: T.t, border: `1px solid ${T.b}`, borderRadius: 6, padding: "4px 8px", width: 180, fontFamily: T.sn }}
+                />
+              )}
+            </div>
+          )}
         </header>
 
         <div data-noprint style={{ marginBottom: S.s }}>
           <span style={{ fontSize: 11, fontFamily: T.sn, color: T.d, letterSpacing: "0.08em", textTransform: "uppercase" }}>Decision workspace</span>
         </div>
+        <div data-noprint style={{ display: "flex", gap: 8, marginBottom: S.l, flexWrap: "wrap" }}>
+          {[
+            { id: 1 as const, label: "Step 1 · Intake", enabled: true },
+            { id: 2 as const, label: "Step 2 · Live Orchestration", enabled: canGoStep2 },
+            { id: 3 as const, label: "Step 3 · Results & Governance", enabled: canGoStep3 },
+          ].map((s) => (
+            <button
+              key={s.id}
+              type="button"
+              onClick={() => s.enabled && setCurrentStep(s.id)}
+              disabled={!s.enabled}
+              style={{
+                fontSize: 12,
+                border: `1px solid ${currentStep === s.id ? T.aB : T.b}`,
+                background: currentStep === s.id ? T.aD : T.s,
+                color: currentStep === s.id ? T.a : (s.enabled ? T.t : T.d),
+                borderRadius: 999,
+                padding: "6px 12px",
+                cursor: s.enabled ? "pointer" : "not-allowed",
+                fontFamily: T.sn,
+                fontWeight: 600,
+              }}
+            >
+              {s.label}
+            </button>
+          ))}
+        </div>
 
         {/* INTAKE + EXAMPLES */}
+        {currentStep === 1 && (
         <div data-noprint style={{ display: "flex", gap: S.l, alignItems: "flex-start", flexWrap: "wrap", marginBottom: S.l }}>
           <div style={{ flex: "3 1 420px", minWidth: 0, display: "flex", flexDirection: "column", gap: S.m }}>
             <IntakeForm state={state} dispatch={dispatch} />
@@ -182,7 +226,7 @@ export default function App() {
                 )}
                 <button
                   type="button"
-                  onClick={() => state.phase === "idle" && getMainInput().trim() && analyze()}
+                  onClick={() => startAnalysis()}
                   disabled={state.phase !== "idle" || !getMainInput().trim()}
                   style={{
                     width: "100%", height: 52,
@@ -210,7 +254,7 @@ export default function App() {
               <div style={{ fontSize: 12, color: T.m, margin: "0 0 10px", fontFamily: T.sn }}>Not sure where to start? Try one of these.</div>
               <div style={{ display: "grid", gap: S.s }}>
                 {(showMoreExamples ? SCENARIOS : SCENARIOS.slice(0, 2)).map((ex: Scenario, i: number) => (
-                  <button key={i} onClick={() => analyze(ex.text)}
+                  <button key={i} onClick={() => startAnalysis(ex.text)}
                     style={{ display: "block", background: T.s, border: `1px solid ${T.b}`, borderRadius: 12, padding: `${S.m}px ${S.l}px`, cursor: "pointer", textAlign: "left", width: "100%", boxShadow: "0 2px 6px rgba(15,23,42,0.04)" }}
                     onMouseEnter={(e) => { e.currentTarget.style.borderColor = T.a; e.currentTarget.style.background = T.r; }}
                     onMouseLeave={(e) => { e.currentTarget.style.borderColor = T.b; e.currentTarget.style.background = T.s; }}
@@ -230,40 +274,41 @@ export default function App() {
             </aside>
           )}
         </div>
+        )}
 
         {/* PROGRESS */}
-        {isAnalyzing && (
+        {currentStep === 2 && (
           <div style={{ marginBottom: S.l }}>
-            <div role="status" aria-live="polite" style={{ background: T.s, border: `1px solid ${T.b}`, borderRadius: 12, padding: S.l, marginBottom: S.m, boxShadow: "0 4px 20px rgba(15,23,42,0.06)" }}>
-              <div style={{ fontSize: 12, fontWeight: 600, color: T.t, marginBottom: S.s, fontFamily: T.sn }}>AI Analysis</div>
-              <p style={{ fontSize: 12, color: T.m, margin: `0 0 ${S.m}px`, fontFamily: T.sn }}>
-                {state.phase === "researching" ? "Researching architecture options… Evaluating cost tradeoffs…"
-                  : state.phase === "evaluating" ? "Critical review in progress…"
-                  : state.phase === "revising" ? "Optimizer: re-running flagged agents with reviewer feedback…"
-                  : "Synthesizing brief…"} This usually takes 1–3 minutes.
-              </p>
-              {[
-                { done: true, active: false, label: "Parsing context" },
-                { done: ["evaluating", "revising", "synthesizing"].includes(state.phase), active: state.phase === "researching", label: "Specialist agents (cost · arch · operations · strategy)" },
-                { done: ["revising", "synthesizing"].includes(state.phase), active: state.phase === "evaluating", label: "Devil's Advocate review" },
-                {
-                  done: state.phase === "synthesizing",
-                  active: state.phase === "revising",
-                  label: state.evalCritiques?.length
-                    ? `Optimizer: revising ${state.evalCritiques.map(([k]) => k).join(", ")} — ${state.evalCritiques[0]?.[1]?.slice(0, 70)}…`
-                    : "Optimizer: revising flagged domains",
-                },
-                { done: false, active: state.phase === "synthesizing", label: "Synthesis" },
-              ].map((step, i) => (
-                <div key={i} style={{ display: "flex", alignItems: "center", gap: S.s, padding: `${S.s}px 0`, fontSize: 13, color: step.done ? T.m : T.t, fontFamily: T.sn }}>
-                  <span style={{ width: 20, textAlign: "center" }}>
-                    {step.done ? <span style={{ color: T.g }}>✓</span> : step.active ? <span style={{ color: T.a, animation: "pulse 1s infinite" }}>→</span> : "○"}
-                  </span>
-                  <span>{step.label}{step.active ? "…" : ""}</span>
-                </div>
-              ))}
-            </div>
-            <AgentProgress progress={state.agentProgress} searchLog={state.searchLog} />
+            {state.workflowGraph ? (
+              <NanobotWorkflowView
+                graph={state.workflowGraph}
+                phaseLabel={
+                  state.phase === "researching" ? "Researching options and cost tradeoffs"
+                    : state.phase === "evaluating" ? "Critical evaluation in progress"
+                      : state.phase === "revising" ? "Revision loop executing"
+                        : state.phase === "done" ? "Execution complete"
+                          : "Synthesizing final decision brief"
+                }
+                progress={state.agentProgress}
+                searchLog={state.searchLog}
+                sharedEvidence={state.sharedEvidence}
+              />
+            ) : (
+              <div style={{ background: T.s, border: `1px solid ${T.b}`, borderRadius: 12, padding: 18, color: T.m }}>
+                Start an analysis in Step 1 to view live orchestration.
+              </div>
+            )}
+            {state.brief && (
+              <div style={{ marginTop: 10, display: "flex", justifyContent: "flex-end" }}>
+                <button
+                  type="button"
+                  onClick={() => setCurrentStep(3)}
+                  style={{ fontSize: 12, border: `1px solid ${T.aB}`, background: T.aD, color: T.a, borderRadius: 999, padding: "6px 12px", cursor: "pointer" }}
+                >
+                  Open Step 3 Results
+                </button>
+              </div>
+            )}
           </div>
         )}
 
@@ -277,13 +322,15 @@ export default function App() {
         )}
 
         {/* RESULTS */}
-        {state.brief && (
+        {currentStep === 3 && state.brief && (
           <div ref={resultRef}>
             <div data-noprint style={{ display: "flex", gap: S.s, marginBottom: S.m, flexWrap: "wrap" }}>
+              <span style={{ fontSize: 11, color: T.d, textTransform: "uppercase", letterSpacing: "0.08em", alignSelf: "center" }}>Decision</span>
               <Tab active={state.activeTab === "brief"} label="Decision Brief" onClick={() => dispatch({ type: "SET_TAB", value: "brief" })} />
               <Tab active={state.activeTab === "devils"} label="Critical Review" onClick={() => dispatch({ type: "SET_TAB", value: "devils" })} />
               <Tab active={state.activeTab === "sources"} label="Sources" onClick={() => dispatch({ type: "SET_TAB", value: "sources" })} count={state.searchLog.length} />
               <Tab active={state.activeTab === "history"} label="History" onClick={() => dispatch({ type: "SET_TAB", value: "history" })} count={state.history.length} />
+              <span style={{ fontSize: 11, color: T.d, textTransform: "uppercase", letterSpacing: "0.08em", alignSelf: "center", marginLeft: 8 }}>Execution</span>
               {showAdvancedUi && (
                 <Tab active={state.activeTab === "metadata"} label="Run Metadata" onClick={() => dispatch({ type: "SET_TAB", value: "metadata" })} />
               )}
@@ -299,6 +346,10 @@ export default function App() {
               {showAdvancedUi && (
                 <Tab active={state.activeTab === "rundiff"} label="Run Diff" onClick={() => dispatch({ type: "SET_TAB", value: "rundiff" })} />
               )}
+              {state.workflowGraph && (
+                <Tab active={state.activeTab === "workflow"} label="Workflow" onClick={() => dispatch({ type: "SET_TAB", value: "workflow" })} />
+              )}
+              <span style={{ fontSize: 11, color: T.d, textTransform: "uppercase", letterSpacing: "0.08em", alignSelf: "center", marginLeft: 8 }}>Governance</span>
               {showAdvancedUi && (
                 <Tab active={state.activeTab === "reviews"} label="Review Queue" onClick={() => dispatch({ type: "SET_TAB", value: "reviews" })} />
               )}
@@ -308,6 +359,10 @@ export default function App() {
               {showAdvancedUi && (
                 <Tab active={state.activeTab === "telemetry"} label="Telemetry" onClick={() => dispatch({ type: "SET_TAB", value: "telemetry" })} />
               )}
+              {showAdvancedUi && (
+                <Tab active={state.activeTab === "fleet"} label="Fleet Ops" onClick={() => dispatch({ type: "SET_TAB", value: "fleet" })} />
+              )}
+              <span style={{ fontSize: 11, color: T.d, textTransform: "uppercase", letterSpacing: "0.08em", alignSelf: "center", marginLeft: 8 }}>Debug</span>
               {showAdvancedUi && (
                 <Tab active={state.activeTab === "simulator"} label="Policy Simulator" onClick={() => dispatch({ type: "SET_TAB", value: "simulator" })} />
               )}
@@ -320,7 +375,14 @@ export default function App() {
             </div>
             {state.activeTab === "brief" && <BriefView d={state.brief} />}
             {state.activeTab === "devils" && <DevilsView d={state.brief} />}
-            {state.activeTab === "sources" && <SourcesView d={state.brief} searchLog={state.searchLog} />}
+            {state.activeTab === "sources" && (
+              <SourcesView
+                d={state.brief}
+                searchLog={state.searchLog}
+                searchResults={state.searchResults}
+                sharedEvidence={state.sharedEvidence}
+              />
+            )}
             {showAdvancedUi && state.activeTab === "metadata" && <RunMetadataView d={state.brief} />}
             {showAdvancedUi && state.activeTab === "evidence" && <EvidenceInspectorView d={state.brief} />}
             {showAdvancedUi && state.activeTab === "scenarios" && <ScenarioPanel state={state} dispatch={dispatch} onReanalyze={handleScenarioReanalyze} />}
@@ -329,8 +391,18 @@ export default function App() {
             {showAdvancedUi && state.activeTab === "rundiff" && <TraceDiffView defaultA={latestRunId} />}
             {showAdvancedUi && state.activeTab === "reviews" && <ReviewQueueView />}
             {showAdvancedUi && state.activeTab === "lineage" && <LineageExplorerView initialRunId={latestRunId} />}
-            {showAdvancedUi && state.activeTab === "telemetry" && <TelemetryDashboardView />}
+            {showAdvancedUi && state.activeTab === "telemetry" && <TelemetryDashboardView mode="overview" />}
+            {showAdvancedUi && state.activeTab === "fleet" && <TelemetryDashboardView mode="fleet" />}
             {showAdvancedUi && state.activeTab === "simulator" && <PolicySimulatorView />}
+            {state.activeTab === "workflow" && (
+              <NanobotWorkflowView
+                graph={state.workflowGraph}
+                phaseLabel="Workflow replay"
+                progress={state.agentProgress}
+                searchLog={state.searchLog}
+                sharedEvidence={state.sharedEvidence}
+              />
+            )}
             {showAdvancedUi && state.activeTab === "changes" && <DiffView current={state.history[0] ?? state.brief} previous={state.compareWith ?? state.history[1]} />}
           </div>
         )}
