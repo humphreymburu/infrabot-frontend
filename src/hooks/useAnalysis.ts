@@ -147,6 +147,11 @@ const INITIAL_AGENTS: AgentState[] = [
   { key: 'planner', label: 'Implementation', status: 'pending' },
 ]
 
+const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || '').trim()
+const ANALYZE_STREAM_URL = API_BASE_URL
+  ? `${API_BASE_URL.replace(/\/+$/, '')}/api/analyze/stream`
+  : '/api/analyze/stream'
+
 // ── Hook ───────────────────────────────────────────────────────────
 
 export function useAnalysis() {
@@ -192,7 +197,7 @@ export function useAnalysis() {
     })
 
     try {
-      const res = await fetch('/api/analyze/stream', {
+      const res = await fetch(ANALYZE_STREAM_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
