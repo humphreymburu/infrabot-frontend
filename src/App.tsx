@@ -54,9 +54,7 @@ export default function App() {
                 <path d="M2 12l10 5 10-5" />
               </svg>
             </div>
-            <h1 className="text-sm font-medium text-zinc-100 tracking-tight">
-              Tech Decision Advisor
-            </h1>
+            <h1 className="text-sm font-medium text-zinc-100 tracking-tight">INFRABOT</h1>
           </div>
 
           <div className="flex items-center gap-3">

@@ -14,12 +14,12 @@ const EXAMPLES = [
     question: 'Should we build our own auth system or use Auth0/Clerk? We have 3 engineers, 50k MAU, and need SSO within 2 months.',
   },
   {
-    label: 'Migration decision',
-    question: 'We\'re considering migrating from self-hosted PostgreSQL to PlanetScale. 200GB database, ~2000 QPS, team of 4. Timeline is 3 months, budget is $5k/mo.',
+    label: 'AWS OpenSearch to Azure AI Search Migration decision',
+    question: 'We are considering migrating from AWS OpenSearch—currently handling 40,000 documents for keyword search in our Drupal and Next.js applications on AWS to Azure AI Search.',
   },
   {
-    label: 'Architecture choice',
-    question: 'Our Django monolith is struggling at 500 RPS. Should we go microservices, modular monolith, or add a caching layer? Team is 8 engineers, risk appetite is moderate.',
+    label: 'Adobt Azure AI Search as our main hybrid keyword and semantic search',
+    question: 'Should we adopt Azure AI Search as our main hybrid keyword and semantic search platform for 40,000 documents in our Drupal and Next.js apps, and what migration plan minimizes risk, downtime, and cost?',
   },
   {
     label: 'Vendor evaluation',
