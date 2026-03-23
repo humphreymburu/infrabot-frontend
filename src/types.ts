@@ -226,6 +226,18 @@ export interface Brief {
       governance_pass?: boolean;
       confidence_score?: number;
     };
+    decision_grade_contract?: {
+      status?: string;
+      decision_grade?: boolean;
+      reasons?: string[];
+      contract?: {
+        recommendation_gate_pass?: boolean;
+        feature_inventory_valid?: boolean;
+        benchmark_report_valid?: boolean;
+        explicit_cost_foundation?: boolean;
+        evidence_governance_pass?: boolean;
+      };
+    };
     brief_quality?: {
       required_sections?: string[];
       missing_sections?: string[];
@@ -279,6 +291,7 @@ export interface Brief {
     migration_one_time?: string;
     roi_timeline?: string;
     foundation_status?: string;
+    cost_mode?: string;
     source_type?: Record<string, string>;
     cost_basis?: {
       current?: {
@@ -610,6 +623,7 @@ export interface AppState {
     globalSearchPreview: Array<{ title?: string; url?: string }>;
     byAgent: SharedEvidenceItem[];
   };
+  assistantStreamText: string;
 }
 
 export type Action =
@@ -635,6 +649,8 @@ export type Action =
   | { type: "RESET_WORKFLOW_GRAPH" }
   | { type: "SET_SHARED_EVIDENCE"; value: { globalSearchPreview: Array<{ title?: string; url?: string }>; byAgent: SharedEvidenceItem[] } }
   | { type: "RESET_SHARED_EVIDENCE" }
+  | { type: "APPEND_ASSISTANT_STREAM"; value: string }
+  | { type: "RESET_ASSISTANT_STREAM" }
   | { type: "RESET" };
 
 export interface AltConfig {
@@ -655,6 +671,43 @@ export interface PolicyPreview {
     tools: Record<string, number | boolean>;
     timeouts: Record<string, number>;
   };
+}
+
+export interface ToolAudit {
+  status: string;
+  summary: {
+    tool_count?: number;
+    overlap_warnings?: number;
+    violations?: number;
+  };
+  tool_registry: Record<string, {
+    name?: string;
+    description?: string;
+    best_for?: string[];
+    avoid_for?: string[];
+    output_contract?: string[];
+  }>;
+  description_overlap: Array<{
+    left?: string;
+    right?: string;
+    similarity?: number;
+    risk?: string;
+    reason?: string;
+  }>;
+  per_agent: Array<{
+    agent?: string;
+    tools?: string[];
+    tool_count?: number;
+    unknown_tools?: string[];
+    within_recommended_scope?: boolean;
+  }>;
+  violations: Array<{
+    type?: string;
+    agent?: string;
+    message?: string;
+    tools?: string[];
+    unknown_tools?: string[];
+  }>;
 }
 
 export interface Provider {
